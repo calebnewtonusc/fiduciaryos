@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM base AS builder
 
 COPY requirements.txt .
+# hadolint ignore=DL3013
 RUN pip install --no-cache-dir --user -r requirements.txt && \
     pip install --no-cache-dir --user uvicorn[standard] fastapi
 
@@ -35,7 +36,7 @@ COPY --from=builder /root/.local /home/fiduciaryos/.local
 COPY core/ ./core/
 COPY agents/ ./agents/
 COPY evaluation/ ./evaluation/
-COPY api/ ./api/ 2>/dev/null || true
+COPY api/ ./api/
 
 # Data directories (mounted at runtime — not baked in)
 RUN mkdir -p data/audit_logs data/risk_guardian && \

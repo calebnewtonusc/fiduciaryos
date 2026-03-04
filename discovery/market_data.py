@@ -181,7 +181,7 @@ FRED_SERIES: list[dict[str, str]] = [
 
 def _yfinance_available() -> bool:
     try:
-        import yfinance  # type: ignore
+        import yfinance  # type: ignore  # noqa: F401
 
         return True
     except ImportError:

@@ -361,9 +361,9 @@ class RebalancingAgent:
 
             # Tax estimation
             ticker_lots = [
-                l
-                for l in tax_lots
-                if l.ticker == ticker and l.account_type == "taxable"
+                lot_item
+                for lot_item in tax_lots
+                if lot_item.ticker == ticker and lot_item.account_type == "taxable"
             ]
             st_gain = 0.0
             lt_gain = 0.0

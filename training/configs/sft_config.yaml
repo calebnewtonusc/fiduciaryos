@@ -1,3 +1,4 @@
+---
 # FiduciaryOS SFT Training Configuration
 # Stage 1: Supervised Fine-Tuning on fiduciary decision corpus
 # Hardware: 10x NVIDIA A6000 48GB (GPUs 8-17)

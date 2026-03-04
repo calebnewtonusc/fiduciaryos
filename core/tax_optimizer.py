@@ -201,7 +201,7 @@ class TaxOptimizer:
             candidates.append(
                 HarvestCandidate(
                     ticker=ticker,
-                    lots=[l for l in lots if l.unrealized_gain_loss(price) < 0],
+                    lots=[lot_item for lot_item in lots if lot_item.unrealized_gain_loss(price) < 0],
                     unrealized_loss_usd=round(total_loss, 2),
                     tax_savings_estimate_usd=round(tax_savings, 2),
                     wash_sale_safe=wash_safe,
@@ -235,7 +235,7 @@ class TaxOptimizer:
         Returns:
             List of (TaxLot, shares_from_this_lot) pairs.
         """
-        lots = [l for l in tax_lots if l.ticker == ticker]
+        lots = [lot_item for lot_item in tax_lots if lot_item.ticker == ticker]
         if not lots:
             return []
 
@@ -243,7 +243,7 @@ class TaxOptimizer:
 
         if strategy == "max_loss":
             # Sort by unrealized gain/loss, most negative first (harvest losses first)
-            lots.sort(key=lambda l: l.unrealized_gain_loss(current_price))
+            lots.sort(key=lambda lot_item: lot_item.unrealized_gain_loss(current_price))
         elif strategy == "min_tax":
             # Sort: long-term losses first, then short-term losses, then long-term gains, then short-term gains
             def lot_priority(lot: TaxLot) -> tuple:
@@ -259,7 +259,7 @@ class TaxOptimizer:
 
             lots.sort(key=lot_priority)
         elif strategy == "fifo":
-            lots.sort(key=lambda l: l.purchase_date)
+            lots.sort(key=lambda lot_item: lot_item.purchase_date)
 
         selected: list[tuple[TaxLot, float]] = []
         remaining = shares_to_sell

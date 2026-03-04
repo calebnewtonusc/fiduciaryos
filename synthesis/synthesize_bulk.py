@@ -314,7 +314,7 @@ class FiduciaryBulkSynthesizer:
         if not raw:
             return None
 
-        pair_id = f"portfolio_{int(hashlib.md5(user_prompt.encode()).hexdigest(), 16) % 10**10:010d}"
+        pair_id = f"portfolio_{int(hashlib.md5(user_prompt.encode(), usedforsecurity=False).hexdigest(), 16) % 10**10:010d}"
         try:
             parsed = json.loads(self._extract_json(raw))
             human_value = parsed.get("prompt", user_prompt[:200])
@@ -354,7 +354,7 @@ class FiduciaryBulkSynthesizer:
         if not raw:
             return None
 
-        pair_id = f"violation_{int(hashlib.md5(user_prompt.encode()).hexdigest(), 16) % 10**10:010d}"
+        pair_id = f"violation_{int(hashlib.md5(user_prompt.encode(), usedforsecurity=False).hexdigest(), 16) % 10**10:010d}"
         return TrainingPair(
             pair_id=pair_id,
             stream="violation",
@@ -408,7 +408,7 @@ class FiduciaryBulkSynthesizer:
         if not raw:
             return None
 
-        pair_id = f"tax_{int(hashlib.md5(user_prompt.encode()).hexdigest(), 16) % 10**10:010d}"
+        pair_id = f"tax_{int(hashlib.md5(user_prompt.encode(), usedforsecurity=False).hexdigest(), 16) % 10**10:010d}"
         return TrainingPair(
             pair_id=pair_id,
             stream="tax",
@@ -457,7 +457,7 @@ class FiduciaryBulkSynthesizer:
         if not raw:
             return None
 
-        pair_id = f"rebalance_{int(hashlib.md5(user_prompt.encode()).hexdigest(), 16) % 10**10:010d}"
+        pair_id = f"rebalance_{int(hashlib.md5(user_prompt.encode(), usedforsecurity=False).hexdigest(), 16) % 10**10:010d}"
         return TrainingPair(
             pair_id=pair_id,
             stream="rebalance",
@@ -492,7 +492,7 @@ class FiduciaryBulkSynthesizer:
         if not raw:
             return None
 
-        pair_id = f"risk_{int(hashlib.md5(user_prompt.encode()).hexdigest(), 16) % 10**10:010d}"
+        pair_id = f"risk_{int(hashlib.md5(user_prompt.encode(), usedforsecurity=False).hexdigest(), 16) % 10**10:010d}"
         return TrainingPair(
             pair_id=pair_id,
             stream="risk",

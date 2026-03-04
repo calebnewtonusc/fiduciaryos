@@ -32,7 +32,7 @@ import requests
 from loguru import logger
 
 try:
-    import anthropic
+    import anthropic  # noqa: F401
 
     HAS_ANTHROPIC = True
 except ImportError:

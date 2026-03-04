@@ -188,7 +188,7 @@ def train(args: argparse.Namespace) -> None:
 
     from transformers import AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)  # nosec B615
     tokenizer.save_pretrained(args.output_dir)
 
     logger.info(f"GRPO training complete. Model saved to {args.output_dir}")

@@ -284,7 +284,7 @@ def print_stats() -> None:
     for split in ["train", "val", "test"]:
         p = TRAIN_DIR / f"fiduciaryos_{split}.jsonl"
         if p.exists():
-            n = len([l for l in p.read_text().splitlines() if l.strip()])
+            n = len([line for line in p.read_text().splitlines() if line.strip()])
             logger.info(f"  {split}: {n:,} pairs")
 
 

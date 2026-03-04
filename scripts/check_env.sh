@@ -43,8 +43,11 @@ echo "[ Core Packages ]"
 
 check_package() {
     PKG=$1
-    python -c "import ${PKG}; print(getattr(${PKG}, '__version__', 'ok'))" 2>/dev/null && \
-        pass "${PKG}" || fail "${PKG} not found"
+    if python -c "import ${PKG}; print(getattr(${PKG}, '__version__', 'ok'))" 2>/dev/null; then
+        pass "${PKG}"
+    else
+        fail "${PKG} not found"
+    fi
 }
 
 check_package torch
@@ -154,8 +157,11 @@ echo ""
 echo "[ DeepSpeed Config ]"
 
 if [[ -f "training/configs/deepspeed_zero3.json" ]]; then
-    python -c "import json; json.load(open('training/configs/deepspeed_zero3.json'))" && \
-        pass "deepspeed_zero3.json valid JSON" || fail "deepspeed_zero3.json invalid JSON"
+    if python -c "import json; json.load(open('training/configs/deepspeed_zero3.json'))" 2>/dev/null; then
+        pass "deepspeed_zero3.json valid JSON"
+    else
+        fail "deepspeed_zero3.json invalid JSON"
+    fi
 else
     fail "training/configs/deepspeed_zero3.json not found"
 fi

@@ -185,7 +185,7 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"Data: {args.data_path} | Output: {args.output_dir}")
 
     # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(
+    tokenizer = AutoTokenizer.from_pretrained(  # nosec B615
         args.model_name_or_path,
         trust_remote_code=True,
         padding_side="right",
@@ -195,7 +195,7 @@ def train(args: argparse.Namespace) -> None:
 
     # Load model
     logger.info("Loading model...")
-    model = AutoModelForCausalLM.from_pretrained(
+    model = AutoModelForCausalLM.from_pretrained(  # nosec B615
         args.model_name_or_path,
         torch_dtype=torch.bfloat16,
         trust_remote_code=True,

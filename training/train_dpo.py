@@ -124,7 +124,7 @@ def train(args: argparse.Namespace) -> None:
     logger.info(f"FiduciaryOS DPO Training | model={args.model_path}")
 
     # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(
+    tokenizer = AutoTokenizer.from_pretrained(  # nosec B615
         args.model_path,
         trust_remote_code=True,
         padding_side="left",
@@ -133,13 +133,13 @@ def train(args: argparse.Namespace) -> None:
         tokenizer.pad_token = tokenizer.eos_token
 
     # Load policy model (the model we're training) from PEFT adapter checkpoint
-    base_model = AutoModelForCausalLM.from_pretrained(
+    base_model = AutoModelForCausalLM.from_pretrained(  # nosec B615
         args.base_model,
         torch_dtype=torch.bfloat16,
         attn_implementation="flash_attention_2",
         device_map=None,
     )
-    policy_model = PeftModel.from_pretrained(base_model, args.model_path)
+    policy_model = PeftModel.from_pretrained(base_model, args.model_path)  # nosec B615
     policy_model.enable_input_require_grads()
 
     # Load dataset
@@ -180,12 +180,12 @@ def train(args: argparse.Namespace) -> None:
 
     # Load a frozen reference model (required for stable KL divergence computation)
     logger.info("Loading frozen reference model...")
-    ref_base_model = AutoModelForCausalLM.from_pretrained(
+    ref_base_model = AutoModelForCausalLM.from_pretrained(  # nosec B615
         args.base_model,
         torch_dtype=torch.bfloat16,
         device_map=None,
     )
-    ref_model = PeftModel.from_pretrained(ref_base_model, args.model_path)
+    ref_model = PeftModel.from_pretrained(ref_base_model, args.model_path)  # nosec B615
     ref_model.eval()
 
     trainer = DPOTrainer(
