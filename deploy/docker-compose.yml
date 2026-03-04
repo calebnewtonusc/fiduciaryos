@@ -83,7 +83,10 @@ services:
       - risk_guardian_state:/data/risk_guardian
     security_opt:
       - no-new-privileges:true
-    read_only: false  # Needs to write audit logs
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -115,6 +118,12 @@ services:
       --max-model-len 4096
       --gpu-memory-utilization 0.90
       --api-key ${VLLM_API_KEY:-dummy}
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /root/.cache/pip
     deploy:
       resources:
         reservations:

@@ -12,7 +12,7 @@ The reward signal measures fiduciary compliance quality on three dimensions:
   2. Format Reward (0.2 weight):
      - Valid JSON with required fields → +1.0
      - Parseable but missing fields → +0.5
-     - Unparseable → 0.0
+     - Unparsable → 0.0
 
   3. Fiduciary Reasoning Quality (0.3 weight):
      - Cites correct legal standard (IA Act section) → +0.3
