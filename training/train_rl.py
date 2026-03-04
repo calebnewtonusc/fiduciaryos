@@ -170,7 +170,7 @@ def train(args: argparse.Namespace) -> None:
         save_steps=250,
         save_total_limit=2,
         deepspeed=args.deepspeed,
-        report_to="wandb" if os.environ.get("WANDB_API_KEY") else "none",
+        report_to="wandb" if os.environ.get("WANDB_API_KEY") else [],
         run_name="fiduciaryos-grpo-v1",
         # GRPO-specific
         num_generations=8,          # G=8: sample 8 completions per prompt
@@ -187,6 +187,11 @@ def train(args: argparse.Namespace) -> None:
 
     logger.info("Starting GRPO training...")
     trainer.train()
+    trainer.save_model(args.output_dir)
+
+    from transformers import AutoTokenizer
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
+    tokenizer.save_pretrained(args.output_dir)
 
     logger.info(f"GRPO training complete. Model saved to {args.output_dir}")
 
@@ -201,6 +206,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--grad_accum", type=int, default=16)
     parser.add_argument("--learning_rate", type=float, default=1e-5)
     parser.add_argument("--deepspeed", type=str, default="training/configs/deepspeed_zero3.json")
+    parser.add_argument("--config", type=str, default=None, help="Path to YAML config (currently unused)")
     return parser.parse_args()
 
 

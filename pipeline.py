@@ -57,8 +57,8 @@ def stage_discovery(args: argparse.Namespace) -> None:
     logger.info(f"Collected {n_sec:,} SEC enforcement releases")
 
     logger.info("Crawling FINRA enforcement actions...")
-    from discovery.enforcement_actions import FINRAEnforcementCrawler
-    finra = FINRAEnforcementCrawler(output_dir=RAW_DIR / "finra")
+    from discovery.enforcement_actions import EnforcementActionCrawler
+    finra = EnforcementActionCrawler(output_dir=RAW_DIR / "finra")
     n_finra = finra.run(max_actions=30_000)
     logger.info(f"Collected {n_finra:,} FINRA enforcement actions")
 
@@ -224,7 +224,10 @@ def stage_eval(args: argparse.Namespace) -> None:
     logger.info("=== FiduciaryBench Results ===")
     results_dict = dataclasses.asdict(results) if dataclasses.is_dataclass(results) else results
     for metric, value in results_dict.items():
-        logger.info(f"  {metric:<45} {value:.4f}")
+        if isinstance(value, (int, float)):
+            logger.info(f"  {metric:<45} {value:.4f}")
+        else:
+            logger.info(f"  {metric:<45} {value}")
 
     results_path = ROOT / "results" / "fiduciarybench_results.json"
     results_path.parent.mkdir(exist_ok=True)

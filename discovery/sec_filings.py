@@ -99,6 +99,14 @@ class SECFilingCrawler:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.user_agent})
 
+    def run(self, max_actions: int = 30_000) -> int:
+        """Run all SEC crawlers and return total count."""
+        total = 0
+        total += self.crawl_adv_part2()
+        total += self.crawl_no_action_letters()
+        total += self.crawl_13f_holdings()
+        return total
+
     def crawl_adv_part2(
         self,
         max_advisers: int = 5000,

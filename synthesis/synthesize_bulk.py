@@ -489,6 +489,25 @@ class FiduciaryBulkSynthesizer:
         return text
 
 
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="FiduciaryOS bulk synthesis")
+    parser.add_argument("--backend", choices=["vllm", "claude"], default="vllm")
+    parser.add_argument("--output-dir", default="data/processed")
+    parser.add_argument("--max-workers", type=int, default=25)
+    parser.add_argument("--vllm-urls", default="http://localhost:8001,http://localhost:8002")
+    args = parser.parse_args()
+    vllm_urls = [u.strip() for u in args.vllm_urls.split(",")] if args.backend == "vllm" else None
+    synthesizer = FiduciaryBulkSynthesizer(
+        output_dir=args.output_dir,
+        backend=args.backend,
+        vllm_urls=vllm_urls,
+        max_workers=args.max_workers,
+    )
+    stats = synthesizer.run()
+    print(f"Done: {stats}")
+
+
 # Built-in violation scenario templates (for guaranteed training variety)
 VIOLATION_SCENARIO_TEMPLATES = [
     {

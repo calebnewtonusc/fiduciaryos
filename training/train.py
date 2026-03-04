@@ -189,11 +189,11 @@ def train(args: argparse.Namespace) -> None:
         attn_implementation="flash_attention_2",
     )
     model.config.use_cache = False
-    model.enable_input_require_grads()
 
     # Apply LoRA
     lora_config = build_lora_config()
-    model = get_peft_model(model, lora_config)
+    model = get_peft_model(model, lora_config)   # wrap first
+    model.enable_input_require_grads()           # then enable on the PeftModel
     model.print_trainable_parameters()
 
     # Load data
@@ -223,11 +223,11 @@ def train(args: argparse.Namespace) -> None:
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         deepspeed=args.deepspeed,
-        report_to="wandb" if os.environ.get("WANDB_API_KEY") else "none",
+        report_to="wandb" if os.environ.get("WANDB_API_KEY") else [],
         run_name="fiduciaryos-sft-v1",
         dataloader_num_workers=4,
         remove_unused_columns=False,
-        max_seq_length=MAX_SEQ_LENGTH,
+        max_seq_length=args.max_seq_length,
         dataset_text_field="text",
     )
 
@@ -272,6 +272,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--grad_accum", type=int, default=8)
     parser.add_argument("--learning_rate", type=float, default=2e-4)
     parser.add_argument("--deepspeed", type=str, default="training/configs/deepspeed_zero3.json")
+    parser.add_argument("--config", type=str, default=None, help="Path to YAML config (currently unused)")
+    parser.add_argument("--max_seq_length", type=int, default=4096)
     return parser.parse_args()
 
 

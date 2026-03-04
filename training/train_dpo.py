@@ -36,6 +36,7 @@ from pathlib import Path
 import torch
 from datasets import Dataset
 from loguru import logger
+from peft import PeftModel
 from trl import DPOConfig, DPOTrainer
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -116,13 +117,15 @@ def train(args: argparse.Namespace) -> None:
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # Load policy model (the model we're training)
-    policy_model = AutoModelForCausalLM.from_pretrained(
-        args.model_path,
+    # Load policy model (the model we're training) from PEFT adapter checkpoint
+    base_model = AutoModelForCausalLM.from_pretrained(
+        args.base_model,
         torch_dtype=torch.bfloat16,
-        trust_remote_code=True,
         attn_implementation="flash_attention_2",
+        device_map=None,
     )
+    policy_model = PeftModel.from_pretrained(base_model, args.model_path)
+    policy_model.enable_input_require_grads()
 
     # Load dataset
     dataset = load_dpo_dataset(args.data_path)
@@ -151,7 +154,7 @@ def train(args: argparse.Namespace) -> None:
         save_total_limit=2,
         load_best_model_at_end=True,
         deepspeed=args.deepspeed,
-        report_to="wandb" if os.environ.get("WANDB_API_KEY") else "none",
+        report_to="wandb" if os.environ.get("WANDB_API_KEY") else [],
         run_name="fiduciaryos-dpo-v1",
         # DPO-specific
         beta=0.1,                   # KL divergence penalty (low = stay closer to SFT)
@@ -162,12 +165,12 @@ def train(args: argparse.Namespace) -> None:
 
     # Load a frozen reference model (required for stable KL divergence computation)
     logger.info("Loading frozen reference model...")
-    ref_model = AutoModelForCausalLM.from_pretrained(
-        args.model_path,
+    ref_base_model = AutoModelForCausalLM.from_pretrained(
+        args.base_model,
         torch_dtype=torch.bfloat16,
-        trust_remote_code=True,
         device_map=None,
     )
+    ref_model = PeftModel.from_pretrained(ref_base_model, args.model_path)
     ref_model.eval()
 
     trainer = DPOTrainer(
@@ -176,7 +179,7 @@ def train(args: argparse.Namespace) -> None:
         args=dpo_config,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
     )
 
     logger.info("Starting DPO training...")
@@ -198,6 +201,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--grad_accum", type=int, default=8)
     parser.add_argument("--learning_rate", type=float, default=5e-7)
     parser.add_argument("--deepspeed", type=str, default="training/configs/deepspeed_zero3.json")
+    parser.add_argument("--config", type=str, default=None, help="Path to YAML config (currently unused)")
+    parser.add_argument("--base_model", type=str, default="Qwen/Qwen2.5-7B-Coder-Instruct")
     return parser.parse_args()
 
 
