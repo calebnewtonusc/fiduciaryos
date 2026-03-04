@@ -27,7 +27,6 @@ import re
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
 import requests
 from loguru import logger
@@ -44,7 +43,7 @@ class SECFiling:
     """A parsed SEC filing section relevant for training."""
 
     filing_id: str
-    form_type: str          # "ADV", "13F-HR", "NO-ACTION"
+    form_type: str  # "ADV", "13F-HR", "NO-ACTION"
     entity_name: str
     cik: str
     filed_date: str
@@ -68,7 +67,7 @@ class SECFilingCrawler:
     - Always set User-Agent header per EDGAR fair-access policy
     """
 
-    RATE_LIMIT_DELAY = 0.12   # 100ms = ~10 req/s
+    RATE_LIMIT_DELAY = 0.12  # 100ms = ~10 req/s
     MAX_RETRIES = 3
 
     # Sections of ADV Part 2A most relevant for fiduciary training
@@ -93,8 +92,7 @@ class SECFilingCrawler:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.user_agent = user_agent or os.environ.get(
-            "SEC_USER_AGENT",
-            "FiduciaryOS Research calebnewtonusc@github.com"
+            "SEC_USER_AGENT", "FiduciaryOS Research calebnewtonusc@github.com"
         )
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.user_agent})
@@ -140,7 +138,9 @@ class SECFilingCrawler:
         advisers_processed = 0
 
         # Step 1: Get list of large RIAs from EDGAR company search
-        cik_list = self._get_ria_cik_list(max_advisers * 2)  # over-fetch, many won't have ADV
+        cik_list = self._get_ria_cik_list(
+            max_advisers * 2
+        )  # over-fetch, many won't have ADV
 
         with open(output_file, "a") as out_f, open(seen_ids_file, "a") as seen_f:
             for cik in cik_list:
@@ -159,7 +159,11 @@ class SECFilingCrawler:
                     sections = self._parse_adv_part2(cik, latest)
 
                     # Filter: only keep sections with fiduciary relevance
-                    relevant = [s for s in sections if s.fiduciary_relevance in ("HIGH", "MEDIUM")]
+                    relevant = [
+                        s
+                        for s in sections
+                        if s.fiduciary_relevance in ("HIGH", "MEDIUM")
+                    ]
 
                     for section in relevant:
                         out_f.write(json.dumps(asdict(section)) + "\n")
@@ -170,7 +174,9 @@ class SECFilingCrawler:
                     advisers_processed += 1
 
                     if advisers_processed % 100 == 0:
-                        logger.info(f"ADV Part 2: processed {advisers_processed} advisers, {total_saved} sections")
+                        logger.info(
+                            f"ADV Part 2: processed {advisers_processed} advisers, {total_saved} sections"
+                        )
 
                     time.sleep(self.RATE_LIMIT_DELAY)
 
@@ -178,7 +184,9 @@ class SECFilingCrawler:
                     logger.debug(f"Failed to process CIK {cik}: {e}")
                     continue
 
-        logger.info(f"ADV Part 2 crawl complete: {total_saved} sections from {advisers_processed} advisers")
+        logger.info(
+            f"ADV Part 2 crawl complete: {total_saved} sections from {advisers_processed} advisers"
+        )
         return total_saved
 
     def crawl_no_action_letters(
@@ -211,15 +219,7 @@ class SECFilingCrawler:
         total_saved = 0
 
         # Search EDGAR full-text for Investment Management no-action letters
-        search_params = {
-            "q": '"fiduciary" "investment adviser"',
-            "dateRange": "custom",
-            "startdt": f"{start_year}-01-01",
-            "forms": "NO-ACTION",
-            "hits.hits.total.value": True,
-        }
 
-        url = "https://efts.sec.gov/LATEST/search-index?q=%22fiduciary%22+%22investment+adviser%22&forms=NO-ACTION"
         offset = 0
 
         while total_saved < max_letters:
@@ -242,7 +242,7 @@ class SECFilingCrawler:
                     if total_saved >= max_letters:
                         break
 
-                    source = hit.get("_source", {})
+                    hit.get("_source", {})
                     file_id = hit.get("_id", "")
 
                     if file_id in seen_ids:
@@ -400,9 +400,9 @@ class SECFilingCrawler:
         adv_filings = []
         for form, date, accession in zip(forms, dates, accessions):
             if form in ("ADV", "ADV-E", "ADV-H", "ADV-W"):
-                adv_filings.append({
-                    "form": form, "date": date, "accession": accession, "cik": cik
-                })
+                adv_filings.append(
+                    {"form": form, "date": date, "accession": accession, "cik": cik}
+                )
 
         adv_filings.sort(key=lambda x: x["date"], reverse=True)
         return adv_filings
@@ -412,9 +412,7 @@ class SECFilingCrawler:
         Download and parse ADV Part 2A, extracting relevant sections.
         """
         accession = filing["accession"].replace("-", "")
-        filing_index_url = (
-            f"{EDGAR_BASE}/Archives/edgar/data/{cik}/{accession}/{filing['accession']}-index.json"
-        )
+        filing_index_url = f"{EDGAR_BASE}/Archives/edgar/data/{cik}/{accession}/{filing['accession']}-index.json"
         resp = self._get_with_retry(filing_index_url)
         if not resp:
             return []
@@ -427,14 +425,22 @@ class SECFilingCrawler:
         # Find the primary document (usually .htm or .txt)
         documents = index_data.get("documents", [])
         primary_doc = next(
-            (d for d in documents if d.get("type") in ("ADV", "ADV-PART2A") and
-             d.get("documentUrl", "").endswith((".htm", ".html", ".txt"))),
-            None
+            (
+                d
+                for d in documents
+                if d.get("type") in ("ADV", "ADV-PART2A")
+                and d.get("documentUrl", "").endswith((".htm", ".html", ".txt"))
+            ),
+            None,
         )
         if not primary_doc:
             primary_doc = next(
-                (d for d in documents if d.get("documentUrl", "").endswith((".htm", ".html"))),
-                None
+                (
+                    d
+                    for d in documents
+                    if d.get("documentUrl", "").endswith((".htm", ".html"))
+                ),
+                None,
             )
         if not primary_doc:
             return []
@@ -470,9 +476,14 @@ class SECFilingCrawler:
             start = match.start()
             # Find next item or end
             next_item_match = re.search(
-                r"\bItem\s+\d+\b", text[start + len(item_key) + 5:], re.IGNORECASE
+                r"\bItem\s+\d+\b", text[start + len(item_key) + 5 :], re.IGNORECASE
             )
-            end = start + len(item_key) + 5 + (next_item_match.start() if next_item_match else 3000)
+            end = (
+                start
+                + len(item_key)
+                + 5
+                + (next_item_match.start() if next_item_match else 3000)
+            )
             section_text = text[start:end].strip()
 
             # Filter out very short or very long sections
@@ -482,17 +493,19 @@ class SECFilingCrawler:
             # Classify relevance
             relevance = self._classify_adv_relevance(item_key, section_text)
 
-            sections.append(SECFiling(
-                filing_id=f"{cik}_{filing['accession']}_{item_key.replace(' ', '_')}",
-                form_type="ADV",
-                entity_name=filing.get("entity_name", ""),
-                cik=cik,
-                filed_date=filing.get("date", ""),
-                section_title=f"{item_key}: {item_title}",
-                section_text=section_text[:5000],  # Cap at 5k chars
-                fiduciary_relevance=relevance,
-                tags=self._tag_section(section_text),
-            ))
+            sections.append(
+                SECFiling(
+                    filing_id=f"{cik}_{filing['accession']}_{item_key.replace(' ', '_')}",
+                    form_type="ADV",
+                    entity_name=filing.get("entity_name", ""),
+                    cik=cik,
+                    filed_date=filing.get("date", ""),
+                    section_title=f"{item_key}: {item_title}",
+                    section_text=section_text[:5000],  # Cap at 5k chars
+                    fiduciary_relevance=relevance,
+                    tags=self._tag_section(section_text),
+                )
+            )
 
         return sections
 
@@ -536,10 +549,12 @@ class SECFilingCrawler:
             return None
 
         text = ""
-        for url in (doc_urls if isinstance(doc_urls, list) else [doc_urls]):
+        for url in doc_urls if isinstance(doc_urls, list) else [doc_urls]:
             if not url:
                 continue
-            resp = self._get_with_retry(url if url.startswith("http") else f"https://www.sec.gov{url}")
+            resp = self._get_with_retry(
+                url if url.startswith("http") else f"https://www.sec.gov{url}"
+            )
             if resp:
                 text = self._html_to_text(resp.text)
                 break
@@ -605,14 +620,19 @@ class SECFilingCrawler:
             "entity_name": entity_name,
             "filed_date": file_date,
             "form_type": "13F-HR",
-            "holdings": [],    # Would be populated from InfoTable XML
+            "holdings": [],  # Would be populated from InfoTable XML
             "total_value_usd": 0,
         }
 
     def _html_to_text(self, html: str) -> str:
         """Basic HTML → text stripping."""
         # Remove scripts and styles
-        html = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", "", html, flags=re.DOTALL | re.IGNORECASE)
+        html = re.sub(
+            r"<(script|style)[^>]*>.*?</(script|style)>",
+            "",
+            html,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
         # Remove tags
         text = re.sub(r"<[^>]+>", " ", html)
         # Normalize whitespace

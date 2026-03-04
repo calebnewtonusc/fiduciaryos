@@ -29,9 +29,6 @@ Usage (sandboxed container only — never called directly from core):
 
 from __future__ import annotations
 
-import json
-import os
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -45,15 +42,15 @@ class MarketOpportunity:
 
     market_id: str
     market_question: str
-    current_yes_price: float    # 0.0 – 1.0 (implied probability)
+    current_yes_price: float  # 0.0 – 1.0 (implied probability)
     current_no_price: float
     estimated_true_probability: float  # Model's estimate
-    edge: float                 # |estimated_true_prob - market_price|
-    confidence: float           # Model's confidence in estimate
-    max_position_usd: float     # Policy-constrained position size
-    expected_value_usd: float   # edge × confidence × max_position
-    market_closes_at: str       # ISO 8601 resolution date
-    liquidity_usd: float        # Available liquidity in this market
+    edge: float  # |estimated_true_prob - market_price|
+    confidence: float  # Model's confidence in estimate
+    max_position_usd: float  # Policy-constrained position size
+    expected_value_usd: float  # edge × confidence × max_position
+    market_closes_at: str  # ISO 8601 resolution date
+    liquidity_usd: float  # Available liquidity in this market
 
 
 @dataclass
@@ -62,7 +59,7 @@ class AlphaPosition:
 
     position_id: str
     market_id: str
-    side: str              # "YES" | "NO"
+    side: str  # "YES" | "NO"
     size_usd: float
     entry_price: float
     current_price: float
@@ -88,9 +85,9 @@ class AlphaSleeveAgent:
     """
 
     APPROVED_MARKETS = ["polymarket", "manifold"]
-    MIN_EDGE_THRESHOLD = 0.05    # Minimum |estimated - market| to trade
-    MIN_CONFIDENCE = 0.70        # Minimum model confidence to trade
-    MAX_SINGLE_MARKET_PCT = 0.20 # Max 20% of alpha sleeve in one market
+    MIN_EDGE_THRESHOLD = 0.05  # Minimum |estimated - market| to trade
+    MIN_CONFIDENCE = 0.70  # Minimum model confidence to trade
+    MAX_SINGLE_MARKET_PCT = 0.20  # Max 20% of alpha sleeve in one market
 
     def __init__(
         self,
@@ -99,17 +96,20 @@ class AlphaSleeveAgent:
         alpha_sleeve_current_value_usd: float,
     ) -> None:
         if not policy_artifact.get("alpha_sleeve", {}).get("enabled", False):
-            raise RuntimeError("Alpha Sleeve is not enabled in client policy. Cannot initialize.")
+            raise RuntimeError(
+                "Alpha Sleeve is not enabled in client policy. Cannot initialize."
+            )
 
         self.policy = policy_artifact
         self.total_portfolio_value = total_portfolio_value_usd
         self.current_sleeve_value = alpha_sleeve_current_value_usd
 
-        self.max_sleeve_value = (
-            total_portfolio_value_usd
-            * policy_artifact["alpha_sleeve"].get("max_allocation_pct", 0.05)
+        self.max_sleeve_value = total_portfolio_value_usd * policy_artifact[
+            "alpha_sleeve"
+        ].get("max_allocation_pct", 0.05)
+        self.max_drawdown_pct = policy_artifact["alpha_sleeve"].get(
+            "max_drawdown_pct", 0.20
         )
-        self.max_drawdown_pct = policy_artifact["alpha_sleeve"].get("max_drawdown_pct", 0.20)
 
         logger.info(
             f"Alpha Sleeve initialized | "
@@ -160,16 +160,27 @@ class AlphaSleeveAgent:
             (is_compliant, reason_if_not)
         """
         # Size check
-        if opportunity.max_position_usd > self.max_sleeve_value * self.MAX_SINGLE_MARKET_PCT:
-            return False, f"Single market position {opportunity.max_position_usd:.0f} > {self.MAX_SINGLE_MARKET_PCT:.0%} of sleeve"
+        if (
+            opportunity.max_position_usd
+            > self.max_sleeve_value * self.MAX_SINGLE_MARKET_PCT
+        ):
+            return (
+                False,
+                f"Single market position {opportunity.max_position_usd:.0f} > {self.MAX_SINGLE_MARKET_PCT:.0%} of sleeve",
+            )
 
         # Available capital check
         current_deployed = sum(p.size_usd for p in open_positions)
         if current_deployed + opportunity.max_position_usd > self.max_sleeve_value:
-            return False, f"Would exceed max sleeve allocation of ${self.max_sleeve_value:,.0f}"
+            return (
+                False,
+                f"Would exceed max sleeve allocation of ${self.max_sleeve_value:,.0f}",
+            )
 
         # Drawdown check (estimated)
-        if self.current_sleeve_value < self.max_sleeve_value * (1 - self.max_drawdown_pct):
+        if self.current_sleeve_value < self.max_sleeve_value * (
+            1 - self.max_drawdown_pct
+        ):
             return False, (
                 f"Alpha Sleeve drawdown exceeded — current ${self.current_sleeve_value:,.0f} "
                 f"vs initial ${self.max_sleeve_value:,.0f}"
@@ -192,13 +203,15 @@ class AlphaSleeveAgent:
         logger.critical("ALPHA SLEEVE EMERGENCY HALT — generating close orders")
         close_orders = []
         for position in open_positions:
-            close_orders.append({
-                "action": "CLOSE",
-                "market_id": position.market_id,
-                "position_id": position.position_id,
-                "reason": "emergency_halt",
-                "urgency": "IMMEDIATE",
-            })
+            close_orders.append(
+                {
+                    "action": "CLOSE",
+                    "market_id": position.market_id,
+                    "position_id": position.position_id,
+                    "reason": "emergency_halt",
+                    "urgency": "IMMEDIATE",
+                }
+            )
         return close_orders
 
     def _evaluate_market(

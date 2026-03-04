@@ -40,7 +40,6 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     TrainerCallback,
-    TrainingArguments,
 )
 from trl import SFTConfig, SFTTrainer
 
@@ -54,8 +53,13 @@ LORA_RANK = 64
 LORA_ALPHA = 128
 LORA_DROPOUT = 0.05
 TARGET_MODULES = [
-    "q_proj", "k_proj", "v_proj", "o_proj",
-    "gate_proj", "up_proj", "down_proj",
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj",
 ]
 MAX_SEQ_LENGTH = 4096
 
@@ -64,7 +68,10 @@ MAX_SEQ_LENGTH = 4096
 # Data loading
 # ---------------------------------------------------------------------------
 
-def load_sharegpt_dataset(data_path: str, val_split: float = 0.02) -> tuple[Dataset, Dataset]:
+
+def load_sharegpt_dataset(
+    data_path: str, val_split: float = 0.02
+) -> tuple[Dataset, Dataset]:
     """
     Load ShareGPT-format JSONL and split into train/val.
 
@@ -88,12 +95,14 @@ def load_sharegpt_dataset(data_path: str, val_split: float = 0.02) -> tuple[Data
                 if "conversations" in obj:
                     records.append(obj)
                 elif "prompt" in obj and "response" in obj:
-                    records.append({
-                        "conversations": [
-                            {"from": "human", "value": obj["prompt"]},
-                            {"from": "gpt", "value": obj["response"]},
-                        ]
-                    })
+                    records.append(
+                        {
+                            "conversations": [
+                                {"from": "human", "value": obj["prompt"]},
+                                {"from": "gpt", "value": obj["response"]},
+                            ]
+                        }
+                    )
                 elif "conversations" not in obj and "pairs" in obj:
                     for pair in obj["pairs"]:
                         records.append({"conversations": pair["conversations"]})
@@ -104,6 +113,7 @@ def load_sharegpt_dataset(data_path: str, val_split: float = 0.02) -> tuple[Data
 
     # Shuffle and split
     import random
+
     random.seed(42)
     random.shuffle(records)
 
@@ -137,6 +147,7 @@ def format_to_text(example: dict, tokenizer) -> str:
 # LoRA config
 # ---------------------------------------------------------------------------
 
+
 def build_lora_config() -> LoraConfig:
     return LoraConfig(
         r=LORA_RANK,
@@ -152,6 +163,7 @@ def build_lora_config() -> LoraConfig:
 # Callbacks
 # ---------------------------------------------------------------------------
 
+
 class LogMetricsCallback(TrainerCallback):
     """Log training metrics to loguru at each logging step."""
 
@@ -166,6 +178,7 @@ class LogMetricsCallback(TrainerCallback):
 # ---------------------------------------------------------------------------
 # Main training function
 # ---------------------------------------------------------------------------
+
 
 def train(args: argparse.Namespace) -> None:
     logger.info(f"FiduciaryOS SFT Training | model={args.model_name_or_path}")
@@ -192,8 +205,8 @@ def train(args: argparse.Namespace) -> None:
 
     # Apply LoRA
     lora_config = build_lora_config()
-    model = get_peft_model(model, lora_config)   # wrap first
-    model.enable_input_require_grads()           # then enable on the PeftModel
+    model = get_peft_model(model, lora_config)  # wrap first
+    model.enable_input_require_grads()  # then enable on the PeftModel
     model.print_trainable_parameters()
 
     # Load data
@@ -235,7 +248,9 @@ def train(args: argparse.Namespace) -> None:
     def preprocess(example):
         return {"text": format_to_text(example, tokenizer)}
 
-    train_dataset = train_dataset.map(preprocess, remove_columns=train_dataset.column_names)
+    train_dataset = train_dataset.map(
+        preprocess, remove_columns=train_dataset.column_names
+    )
     val_dataset = val_dataset.map(preprocess, remove_columns=val_dataset.column_names)
 
     # Trainer
@@ -262,17 +277,27 @@ def train(args: argparse.Namespace) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="FiduciaryOS SFT Training")
     parser.add_argument("--model_name_or_path", type=str, default=MODEL_ID)
-    parser.add_argument("--data_path", type=str, default="data/train/fiduciary_sft.jsonl")
+    parser.add_argument(
+        "--data_path", type=str, default="data/train/fiduciary_sft.jsonl"
+    )
     parser.add_argument("--output_dir", type=str, default="checkpoints/sft")
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--grad_accum", type=int, default=8)
     parser.add_argument("--learning_rate", type=float, default=2e-4)
-    parser.add_argument("--deepspeed", type=str, default="training/configs/deepspeed_zero3.json")
-    parser.add_argument("--config", type=str, default=None, help="Path to YAML config (currently unused)")
+    parser.add_argument(
+        "--deepspeed", type=str, default="training/configs/deepspeed_zero3.json"
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to YAML config (currently unused)",
+    )
     parser.add_argument("--max_seq_length", type=int, default=4096)
     return parser.parse_args()
 

@@ -25,7 +25,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any
 
 from loguru import logger
 
@@ -38,22 +37,22 @@ class Trade:
     """A single proposed trade in the rebalancing plan."""
 
     ticker: str
-    action: str          # "BUY" | "SELL"
+    action: str  # "BUY" | "SELL"
     shares: float
     estimated_price: float
     notional_usd: float
-    reason: str          # "DRIFT_CORRECTION" | "CASH_DEPLOY" | "TLH" | "MANUAL"
+    reason: str  # "DRIFT_CORRECTION" | "CASH_DEPLOY" | "TLH" | "MANUAL"
 
     # Tax metadata (for sells only)
-    lot_selection_strategy: str = "min_tax"   # "min_tax" | "max_loss" | "fifo"
+    lot_selection_strategy: str = "min_tax"  # "min_tax" | "max_loss" | "fifo"
     estimated_short_term_gain_usd: float = 0.0
     estimated_long_term_gain_usd: float = 0.0
     estimated_tax_usd: float = 0.0
     wash_sale_safe: bool = True
 
     # Execution metadata
-    order_type: str = "MARKET"         # "MARKET" | "LIMIT" | "TWAP"
-    urgency: str = "NORMAL"            # "NORMAL" | "URGENT" | "DEFER"
+    order_type: str = "MARKET"  # "MARKET" | "LIMIT" | "TWAP"
+    urgency: str = "NORMAL"  # "NORMAL" | "URGENT" | "DEFER"
 
 
 @dataclass
@@ -62,19 +61,19 @@ class RebalancePlan:
 
     client_id: str
     generated_at: str
-    required: bool                    # False if drift is within tolerance
-    drift_from_target: dict[str, float]   # asset_class → absolute drift
-    max_drift_pct: float             # Largest single drift
+    required: bool  # False if drift is within tolerance
+    drift_from_target: dict[str, float]  # asset_class → absolute drift
+    max_drift_pct: float  # Largest single drift
 
     trades: list[Trade]
     total_buy_usd: float
     total_sell_usd: float
-    total_estimated_tax_usd: float   # Net tax impact (positive = tax cost)
+    total_estimated_tax_usd: float  # Net tax impact (positive = tax cost)
     total_transaction_cost_usd: float
-    net_cost_usd: float              # total_tax + total_transaction_cost
+    net_cost_usd: float  # total_tax + total_transaction_cost
 
     # Context
-    rebalance_trigger: str           # "DRIFT" | "SCHEDULED" | "CASH_INFLOW" | "MANUAL"
+    rebalance_trigger: str  # "DRIFT" | "SCHEDULED" | "CASH_INFLOW" | "MANUAL"
     drift_details: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
@@ -102,8 +101,8 @@ class RebalancingAgent:
         self,
         policy_artifact: PolicyArtifact | None = None,
         tax_optimizer: TaxOptimizer | None = None,
-        drift_threshold: float = 0.05,           # 5% absolute drift before rebalance
-        transaction_cost_pct: float = 0.0005,    # 0.05% per leg
+        drift_threshold: float = 0.05,  # 5% absolute drift before rebalance
+        transaction_cost_pct: float = 0.0005,  # 0.05% per leg
     ) -> None:
         self.policy = policy_artifact
         self.tax_optimizer = tax_optimizer or TaxOptimizer(policy_artifact)
@@ -118,9 +117,9 @@ class RebalancingAgent:
 
     def plan(
         self,
-        holdings: dict[str, float],          # ticker → current_value_usd
+        holdings: dict[str, float],  # ticker → current_value_usd
         target_allocation: dict[str, float],  # asset_class → target_fraction
-        ticker_to_asset_class: dict[str, str], # ticker → asset_class
+        ticker_to_asset_class: dict[str, str],  # ticker → asset_class
         total_portfolio_value: float,
         cash_usd: float,
         tax_lots: list[TaxLot] | None = None,
@@ -174,10 +173,14 @@ class RebalancingAgent:
             f"{cls}: current {(current_by_class.get(cls, 0) / total_portfolio_value):.1%} "
             f"vs target {target_allocation.get(cls, 0):.1%} "
             f"(drift {drift.get(cls, 0):+.1%})"
-            for cls in sorted(drift.keys(), key=lambda k: abs(drift.get(k, 0)), reverse=True)
+            for cls in sorted(
+                drift.keys(), key=lambda k: abs(drift.get(k, 0)), reverse=True
+            )
         ]
 
-        logger.info(f"Max allocation drift: {max_drift:.1%} (threshold: {self.drift_threshold:.1%})")
+        logger.info(
+            f"Max allocation drift: {max_drift:.1%} (threshold: {self.drift_threshold:.1%})"
+        )
 
         # Check if rebalance is needed
         required = max_drift > self.drift_threshold
@@ -196,18 +199,19 @@ class RebalancingAgent:
                 net_cost_usd=0.0,
                 rebalance_trigger=trigger,
                 drift_details=drift_details,
-                notes=[f"No rebalance needed: max drift {max_drift:.1%} < threshold {self.drift_threshold:.1%}"],
+                notes=[
+                    f"No rebalance needed: max drift {max_drift:.1%} < threshold {self.drift_threshold:.1%}"
+                ],
             )
 
         # Step 3: Compute target values
         target_values = {
-            cls: total_portfolio_value * frac
-            for cls, frac in target_allocation.items()
+            cls: total_portfolio_value * frac for cls, frac in target_allocation.items()
         }
 
         # Step 4: Identify sells (over-weight) and buys (under-weight)
-        sells_needed: dict[str, float] = {}   # asset_class → USD to sell
-        buys_needed: dict[str, float] = {}    # asset_class → USD to buy
+        sells_needed: dict[str, float] = {}  # asset_class → USD to sell
+        buys_needed: dict[str, float] = {}  # asset_class → USD to buy
 
         for cls, target_val in target_values.items():
             current_val = current_by_class.get(cls, 0.0)
@@ -253,7 +257,9 @@ class RebalancingAgent:
 
         notes = []
         if trigger == "CASH_INFLOW":
-            notes.append("Rebalance triggered by new cash inflow — deploying to under-weight asset classes")
+            notes.append(
+                "Rebalance triggered by new cash inflow — deploying to under-weight asset classes"
+            )
         deferred = [t for t in trades if t.urgency == "DEFER"]
         if deferred:
             notes.append(
@@ -328,7 +334,8 @@ class RebalancingAgent:
         """Generate sell trades for an over-weight asset class."""
         # Find tickers in this asset class, sorted by value (sell largest first)
         class_tickers = [
-            (t, v) for t, v in holdings.items()
+            (t, v)
+            for t, v in holdings.items()
             if ticker_to_asset_class.get(t) == asset_class and v > 0
         ]
         class_tickers.sort(key=lambda x: x[1], reverse=True)
@@ -353,7 +360,11 @@ class RebalancingAgent:
             wash_safe = self.tax_optimizer._is_wash_sale_safe(ticker, recent_purchases)
 
             # Tax estimation
-            ticker_lots = [l for l in tax_lots if l.ticker == ticker and l.account_type == "taxable"]
+            ticker_lots = [
+                l
+                for l in tax_lots
+                if l.ticker == ticker and l.account_type == "taxable"
+            ]
             st_gain = 0.0
             lt_gain = 0.0
             est_tax = 0.0
@@ -373,8 +384,13 @@ class RebalancingAgent:
                     else:
                         st_gain += gain
 
-                rate_st = self.tax_optimizer.federal_rate + self.tax_optimizer.state_rate
-                est_tax = max(0, st_gain) * rate_st + max(0, lt_gain) * self.tax_optimizer.long_term_rate
+                rate_st = (
+                    self.tax_optimizer.federal_rate + self.tax_optimizer.state_rate
+                )
+                est_tax = (
+                    max(0, st_gain) * rate_st
+                    + max(0, lt_gain) * self.tax_optimizer.long_term_rate
+                )
 
             trade = Trade(
                 ticker=ticker,
@@ -407,24 +423,29 @@ class RebalancingAgent:
         """Generate buy trades for an under-weight asset class."""
         # Find existing tickers in this class (buy existing positions first)
         class_tickers = [
-            t for t, _ in holdings.items()
+            t
+            for t, _ in holdings.items()
             if ticker_to_asset_class.get(t) == asset_class
         ]
 
         if not class_tickers:
             # Use policy default tickers or skip
-            logger.warning(f"No existing tickers for asset class {asset_class} — cannot auto-select")
+            logger.warning(
+                f"No existing tickers for asset class {asset_class} — cannot auto-select"
+            )
             return []
 
         # Buy the largest existing holding (simplest: maintain existing weights)
         ticker = max(class_tickers, key=lambda t: holdings.get(t, 0))
         price = current_prices.get(ticker, 100.0)  # fallback price
 
-        return [Trade(
-            ticker=ticker,
-            action="BUY",
-            shares=round(buy_amount_usd / price, 4),
-            estimated_price=price,
-            notional_usd=round(buy_amount_usd, 2),
-            reason="DRIFT_CORRECTION",
-        )]
+        return [
+            Trade(
+                ticker=ticker,
+                action="BUY",
+                shares=round(buy_amount_usd / price, 4),
+                estimated_price=price,
+                notional_usd=round(buy_amount_usd, 2),
+                reason="DRIFT_CORRECTION",
+            )
+        ]

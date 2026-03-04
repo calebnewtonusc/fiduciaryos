@@ -22,7 +22,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -37,6 +36,7 @@ from loguru import logger
 # Data types
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ClientProfile:
     """Input to the Policy Compiler."""
@@ -48,19 +48,29 @@ class ClientProfile:
     investable_assets: float
 
     # Allocation targets (must sum to 1.0)
-    target_allocation: dict[str, float] = field(default_factory=lambda: {
-        "us_equity": 0.40, "international_equity": 0.20, "us_bonds": 0.25,
-        "international_bonds": 0.05, "alternatives": 0.05, "cash": 0.05,
-    })
+    target_allocation: dict[str, float] = field(
+        default_factory=lambda: {
+            "us_equity": 0.40,
+            "international_equity": 0.20,
+            "us_bonds": 0.25,
+            "international_bonds": 0.05,
+            "alternatives": 0.05,
+            "cash": 0.05,
+        }
+    )
 
     # Rebalancing bands (how far allocation can drift before rebalancing)
-    rebalancing_bands: dict[str, float] = field(default_factory=lambda: {
-        "equities": 0.05, "bonds": 0.04, "cash": 0.02,
-    })
+    rebalancing_bands: dict[str, float] = field(
+        default_factory=lambda: {
+            "equities": 0.05,
+            "bonds": 0.04,
+            "cash": 0.02,
+        }
+    )
 
     # Risk limits
-    max_drawdown_tolerance: float = 0.15   # Maximum acceptable portfolio drawdown
-    volatility_target: float = 0.10        # Annualized portfolio volatility target
+    max_drawdown_tolerance: float = 0.15  # Maximum acceptable portfolio drawdown
+    volatility_target: float = 0.10  # Annualized portfolio volatility target
 
     # Tax settings
     tax_status: str = "taxable"  # "taxable" | "tax_deferred" | "tax_exempt"
@@ -84,17 +94,17 @@ class PolicyArtifact:
     """Signed, machine-verifiable policy document."""
 
     version: str
-    client_id_hash: str          # SHA-256 hash of client_id (PII protection)
-    created_at: str              # ISO 8601
-    expires_at: str              # ISO 8601
+    client_id_hash: str  # SHA-256 hash of client_id (PII protection)
+    created_at: str  # ISO 8601
+    expires_at: str  # ISO 8601
     risk_profile: dict[str, Any]
     target_allocation: dict[str, float]
     rebalancing_bands: dict[str, float]
     tax_strategy: dict[str, Any]
     constraints: dict[str, Any]
     alpha_sleeve: dict[str, Any]
-    policy_hash: str             # SHA-256 of the canonical policy JSON (pre-signature)
-    signature: str               # RSA-4096 signature of policy_hash
+    policy_hash: str  # SHA-256 of the canonical policy JSON (pre-signature)
+    signature: str  # RSA-4096 signature of policy_hash
 
 
 class PolicyViolation(Exception):
@@ -104,12 +114,15 @@ class PolicyViolation(Exception):
         self.action = action
         self.constraint = constraint
         self.detail = detail
-        super().__init__(f"Policy violation: [{constraint}] {detail} — proposed action: {action}")
+        super().__init__(
+            f"Policy violation: [{constraint}] {detail} — proposed action: {action}"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Policy Compiler
 # ---------------------------------------------------------------------------
+
 
 class PolicyCompiler:
     """
@@ -124,15 +137,32 @@ class PolicyCompiler:
     VALIDITY_DAYS = 365
 
     RISK_TOLERANCE_PARAMS = {
-        "conservative": {"max_drawdown": 0.10, "volatility_target": 0.06, "equity_cap": 0.40},
-        "moderate":     {"max_drawdown": 0.18, "volatility_target": 0.10, "equity_cap": 0.70},
-        "aggressive":   {"max_drawdown": 0.30, "volatility_target": 0.16, "equity_cap": 0.90},
+        "conservative": {
+            "max_drawdown": 0.10,
+            "volatility_target": 0.06,
+            "equity_cap": 0.40,
+        },
+        "moderate": {
+            "max_drawdown": 0.18,
+            "volatility_target": 0.10,
+            "equity_cap": 0.70,
+        },
+        "aggressive": {
+            "max_drawdown": 0.30,
+            "volatility_target": 0.16,
+            "equity_cap": 0.90,
+        },
     }
 
     def __init__(self, key_path: str | None = None) -> None:
-        self.key_path = Path(key_path or os.environ.get("POLICY_SIGNING_KEY_PATH", ".keys/policy_signing_key.pem"))
+        self.key_path = Path(
+            key_path
+            or os.environ.get("POLICY_SIGNING_KEY_PATH", ".keys/policy_signing_key.pem")
+        )
         self.pub_key_path = Path(
-            os.environ.get("POLICY_VERIFICATION_KEY_PATH", ".keys/policy_verification_key.pem")
+            os.environ.get(
+                "POLICY_VERIFICATION_KEY_PATH", ".keys/policy_verification_key.pem"
+            )
         )
         self._private_key = None
         self._public_key = None
@@ -142,7 +172,9 @@ class PolicyCompiler:
         """Load existing keys or generate new RSA-4096 key pair."""
         if self.key_path.exists():
             with open(self.key_path, "rb") as f:
-                self._private_key = serialization.load_pem_private_key(f.read(), password=None)
+                self._private_key = serialization.load_pem_private_key(
+                    f.read(), password=None
+                )
             with open(self.pub_key_path, "rb") as f:
                 self._public_key = serialization.load_pem_public_key(f.read())
             logger.debug(f"Loaded RSA keys from {self.key_path}")
@@ -156,17 +188,21 @@ class PolicyCompiler:
 
             # Save private key
             with open(self.key_path, "wb") as f:
-                f.write(self._private_key.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.TraditionalOpenSSL,
-                    encryption_algorithm=serialization.NoEncryption(),
-                ))
+                f.write(
+                    self._private_key.private_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PrivateFormat.TraditionalOpenSSL,
+                        encryption_algorithm=serialization.NoEncryption(),
+                    )
+                )
             # Save public key
             with open(self.pub_key_path, "wb") as f:
-                f.write(self._public_key.public_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PublicFormat.SubjectPublicKeyInfo,
-                ))
+                f.write(
+                    self._public_key.public_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+                    )
+                )
             logger.info(f"Keys saved to {self.key_path.parent}/")
 
     def compile(self, profile: ClientProfile) -> PolicyArtifact:
@@ -217,7 +253,8 @@ class PolicyCompiler:
                 "excluded_securities": profile.excluded_securities,
                 "max_single_security_pct": profile.max_single_security_pct,
                 "liquidity_reserve_months": profile.liquidity_reserve_months,
-                "min_cash_pct": profile.liquidity_reserve_months / 120,  # rough: months/years
+                "min_cash_pct": profile.liquidity_reserve_months
+                / 120,  # rough: months/years
             },
             "alpha_sleeve": {
                 "enabled": profile.alpha_sleeve_enabled,
@@ -239,7 +276,9 @@ class PolicyCompiler:
             signature=signature,
         )
 
-        logger.info(f"Policy compiled for client {client_id_hash[:8]}... | expires {expires.date()}")
+        logger.info(
+            f"Policy compiled for client {client_id_hash[:8]}... | expires {expires.date()}"
+        )
         return artifact
 
     def verify(self, artifact: PolicyArtifact) -> bool:
@@ -256,8 +295,11 @@ class PolicyCompiler:
             return False
 
         # Rebuild canonical policy doc (excluding signature and policy_hash)
-        policy_doc = {k: v for k, v in asdict(artifact).items()
-                      if k not in ("policy_hash", "signature")}
+        policy_doc = {
+            k: v
+            for k, v in asdict(artifact).items()
+            if k not in ("policy_hash", "signature")
+        }
         canonical = json.dumps(policy_doc, sort_keys=True, separators=(",", ":"))
         expected_hash = hashlib.sha256(canonical.encode()).hexdigest()
 
@@ -280,12 +322,14 @@ class PolicyCompiler:
         """
         if not self.verify(artifact):
             raise PolicyViolation(
-                str(action), "SIGNATURE_VERIFICATION", "Policy artifact signature invalid or expired"
+                str(action),
+                "SIGNATURE_VERIFICATION",
+                "Policy artifact signature invalid or expired",
             )
 
         action_type = action.get("type", "")
         ticker = action.get("ticker", "")
-        amount = action.get("amount_usd", 0.0)
+        action.get("amount_usd", 0.0)
         pct_of_portfolio = action.get("pct_of_portfolio", 0.0)
 
         constraints = artifact.constraints
@@ -293,28 +337,32 @@ class PolicyCompiler:
         # Check excluded securities
         if ticker in constraints.get("excluded_securities", []):
             raise PolicyViolation(
-                action_type, "EXCLUDED_SECURITY",
-                f"Security {ticker} is in the client's exclusion list"
+                action_type,
+                "EXCLUDED_SECURITY",
+                f"Security {ticker} is in the client's exclusion list",
             )
 
         # Check concentration limit
         if pct_of_portfolio > constraints.get("max_single_security_pct", 0.10):
             raise PolicyViolation(
-                action_type, "CONCENTRATION_LIMIT",
-                f"Action would result in {pct_of_portfolio:.1%} in {ticker}, exceeding {constraints['max_single_security_pct']:.1%} limit"
+                action_type,
+                "CONCENTRATION_LIMIT",
+                f"Action would result in {pct_of_portfolio:.1%} in {ticker}, exceeding {constraints['max_single_security_pct']:.1%} limit",
             )
 
         # Check Alpha Sleeve constraint
         if action.get("is_alpha_sleeve", False):
             if not artifact.alpha_sleeve.get("enabled", False):
                 raise PolicyViolation(
-                    action_type, "ALPHA_SLEEVE_DISABLED",
-                    "Alpha Sleeve is not enabled in client policy"
+                    action_type,
+                    "ALPHA_SLEEVE_DISABLED",
+                    "Alpha Sleeve is not enabled in client policy",
                 )
             if pct_of_portfolio > artifact.alpha_sleeve.get("max_allocation_pct", 0.05):
                 raise PolicyViolation(
-                    action_type, "ALPHA_SLEEVE_SIZE_LIMIT",
-                    f"Alpha Sleeve allocation {pct_of_portfolio:.1%} exceeds policy maximum {artifact.alpha_sleeve['max_allocation_pct']:.1%}"
+                    action_type,
+                    "ALPHA_SLEEVE_SIZE_LIMIT",
+                    f"Alpha Sleeve allocation {pct_of_portfolio:.1%} exceeds policy maximum {artifact.alpha_sleeve['max_allocation_pct']:.1%}",
                 )
 
         logger.debug(f"Action {action_type} ({ticker}) passed policy check")
@@ -323,7 +371,9 @@ class PolicyCompiler:
         """Validate ClientProfile before compilation."""
         total_alloc = sum(profile.target_allocation.values())
         if not (0.99 <= total_alloc <= 1.01):
-            raise ValueError(f"Target allocation must sum to 1.0, got {total_alloc:.3f}")
+            raise ValueError(
+                f"Target allocation must sum to 1.0, got {total_alloc:.3f}"
+            )
 
         risk_params = self.RISK_TOLERANCE_PARAMS.get(profile.risk_tolerance)
         if risk_params is None:
@@ -342,6 +392,7 @@ class PolicyCompiler:
     def _sign(self, data: str) -> str:
         """Sign data with RSA-4096 private key. Returns hex-encoded signature."""
         import base64
+
         signature = self._private_key.sign(
             data.encode(),
             padding.PKCS1v15(),
@@ -352,6 +403,7 @@ class PolicyCompiler:
     def _verify_signature(self, data: str, signature_b64: str) -> bool:
         """Verify RSA-4096 signature."""
         import base64
+
         try:
             sig_bytes = base64.b64decode(signature_b64)
             self._public_key.verify(

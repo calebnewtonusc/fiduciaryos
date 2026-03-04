@@ -34,9 +34,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 from pathlib import Path
-from typing import Any
 
 from datasets import Dataset
 from loguru import logger
@@ -49,12 +47,9 @@ from trl import GRPOConfig, GRPOTrainer
 # ---------------------------------------------------------------------------
 
 from core.reward_functions import (  # noqa: E402
-    IA_ACT_SECTIONS,
-    FIDUCIARY_QUALITY_MARKERS,
     compute_policy_compliance_reward,
     compute_fiduciary_quality_reward,
     compute_format_reward,
-    _violation_keywords,
 )
 
 
@@ -100,11 +95,7 @@ def reward_fn(
         r_quality = compute_fiduciary_quality_reward(completion)
 
         # Weighted sum
-        reward = (
-            0.50 * r_compliance +
-            0.20 * r_format +
-            0.30 * r_quality
-        )
+        reward = 0.50 * r_compliance + 0.20 * r_format + 0.30 * r_quality
         rewards.append(round(reward, 4))
 
     return rewards
@@ -113,6 +104,7 @@ def reward_fn(
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
+
 
 def load_grpo_dataset(data_path: str) -> Dataset:
     """Load GRPO prompt dataset with ground-truth violation labels."""
@@ -125,21 +117,25 @@ def load_grpo_dataset(data_path: str) -> Dataset:
             obj = json.loads(line)
             # Each record needs: prompt, ground_truth
             if "prompt" in obj:
-                records.append({
-                    "prompt": obj["prompt"],
-                    "ground_truth": {
-                        "violations": obj.get("violations", []),
-                        "expected_verdict": obj.get("verdict", "UNKNOWN"),
-                    },
-                })
+                records.append(
+                    {
+                        "prompt": obj["prompt"],
+                        "ground_truth": {
+                            "violations": obj.get("violations", []),
+                            "expected_verdict": obj.get("verdict", "UNKNOWN"),
+                        },
+                    }
+                )
             elif "conversations" in obj:
                 # Convert ShareGPT format — use human turn as prompt
                 human_turns = [t for t in obj["conversations"] if t["from"] == "human"]
                 if human_turns:
-                    records.append({
-                        "prompt": human_turns[0]["value"],
-                        "ground_truth": obj.get("metadata", {}),
-                    })
+                    records.append(
+                        {
+                            "prompt": human_turns[0]["value"],
+                            "ground_truth": obj.get("metadata", {}),
+                        }
+                    )
         except json.JSONDecodeError:
             continue
 
@@ -150,6 +146,7 @@ def load_grpo_dataset(data_path: str) -> Dataset:
 # ---------------------------------------------------------------------------
 # Main training function
 # ---------------------------------------------------------------------------
+
 
 def train(args: argparse.Namespace) -> None:
     logger.info(f"FiduciaryOS GRPO Training | model={args.model_path}")
@@ -173,7 +170,7 @@ def train(args: argparse.Namespace) -> None:
         report_to="wandb" if os.environ.get("WANDB_API_KEY") else [],
         run_name="fiduciaryos-grpo-v1",
         # GRPO-specific
-        num_generations=8,          # G=8: sample 8 completions per prompt
+        num_generations=8,  # G=8: sample 8 completions per prompt
         max_completion_length=1024,
         temperature=0.9,
     )
@@ -190,6 +187,7 @@ def train(args: argparse.Namespace) -> None:
     trainer.save_model(args.output_dir)
 
     from transformers import AutoTokenizer
+
     tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True)
     tokenizer.save_pretrained(args.output_dir)
 
@@ -199,14 +197,23 @@ def train(args: argparse.Namespace) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="FiduciaryOS GRPO Training")
     parser.add_argument("--model_path", type=str, default="checkpoints/sft/merged")
-    parser.add_argument("--data_path", type=str, default="data/train/grpo_prompts.jsonl")
+    parser.add_argument(
+        "--data_path", type=str, default="data/train/grpo_prompts.jsonl"
+    )
     parser.add_argument("--output_dir", type=str, default="checkpoints/grpo")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--grad_accum", type=int, default=16)
     parser.add_argument("--learning_rate", type=float, default=1e-5)
-    parser.add_argument("--deepspeed", type=str, default="training/configs/deepspeed_zero3.json")
-    parser.add_argument("--config", type=str, default=None, help="Path to YAML config (currently unused)")
+    parser.add_argument(
+        "--deepspeed", type=str, default="training/configs/deepspeed_zero3.json"
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to YAML config (currently unused)",
+    )
     return parser.parse_args()
 
 

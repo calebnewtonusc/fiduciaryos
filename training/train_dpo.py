@@ -45,6 +45,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 # Data loading
 # ---------------------------------------------------------------------------
 
+
 def load_dpo_dataset(data_path: str) -> Dataset:
     """
     Load DPO training data.
@@ -68,19 +69,27 @@ def load_dpo_dataset(data_path: str) -> Dataset:
             obj = json.loads(line)
 
             if "prompt" in obj and "chosen" in obj and "rejected" in obj:
-                records.append({
-                    "prompt": obj["prompt"],
-                    "chosen": obj["chosen"],
-                    "rejected": obj["rejected"],
-                })
+                records.append(
+                    {
+                        "prompt": obj["prompt"],
+                        "chosen": obj["chosen"],
+                        "rejected": obj["rejected"],
+                    }
+                )
 
-            elif "human_message" in obj and "ideal_response" in obj and "rejection_example" in obj:
+            elif (
+                "human_message" in obj
+                and "ideal_response" in obj
+                and "rejection_example" in obj
+            ):
                 # fiduciary_pairs.py template format
-                records.append({
-                    "prompt": obj["human_message"],
-                    "chosen": obj["ideal_response"],
-                    "rejected": obj["rejection_example"],
-                })
+                records.append(
+                    {
+                        "prompt": obj["human_message"],
+                        "chosen": obj["ideal_response"],
+                        "rejected": obj["rejection_example"],
+                    }
+                )
 
         except json.JSONDecodeError:
             continue
@@ -90,13 +99,18 @@ def load_dpo_dataset(data_path: str) -> Dataset:
     if not records:
         # Load from built-in templates as fallback
         from synthesis.fiduciary_pairs import TEMPLATES
+
         for t in TEMPLATES:
-            records.append({
-                "prompt": t.human_message,
-                "chosen": t.ideal_response,
-                "rejected": t.rejection_example,
-            })
-        logger.info(f"Loaded {len(records)} built-in fiduciary pair templates as DPO seed data")
+            records.append(
+                {
+                    "prompt": t.human_message,
+                    "chosen": t.ideal_response,
+                    "rejected": t.rejection_example,
+                }
+            )
+        logger.info(
+            f"Loaded {len(records)} built-in fiduciary pair templates as DPO seed data"
+        )
 
     return Dataset.from_list(records)
 
@@ -104,6 +118,7 @@ def load_dpo_dataset(data_path: str) -> Dataset:
 # ---------------------------------------------------------------------------
 # Main training function
 # ---------------------------------------------------------------------------
+
 
 def train(args: argparse.Namespace) -> None:
     logger.info(f"FiduciaryOS DPO Training | model={args.model_path}")
@@ -157,8 +172,8 @@ def train(args: argparse.Namespace) -> None:
         report_to="wandb" if os.environ.get("WANDB_API_KEY") else [],
         run_name="fiduciaryos-dpo-v1",
         # DPO-specific
-        beta=0.1,                   # KL divergence penalty (low = stay closer to SFT)
-        loss_type="sigmoid",        # Standard DPO loss
+        beta=0.1,  # KL divergence penalty (low = stay closer to SFT)
+        loss_type="sigmoid",  # Standard DPO loss
         max_length=4096,
         max_prompt_length=2048,
     )
@@ -194,15 +209,26 @@ def train(args: argparse.Namespace) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="FiduciaryOS DPO Training")
     parser.add_argument("--model_path", type=str, default="checkpoints/grpo")
-    parser.add_argument("--data_path", type=str, default="data/train/fiduciary_dpo.jsonl")
+    parser.add_argument(
+        "--data_path", type=str, default="data/train/fiduciary_dpo.jsonl"
+    )
     parser.add_argument("--output_dir", type=str, default="checkpoints/dpo")
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--grad_accum", type=int, default=8)
     parser.add_argument("--learning_rate", type=float, default=5e-7)
-    parser.add_argument("--deepspeed", type=str, default="training/configs/deepspeed_zero3.json")
-    parser.add_argument("--config", type=str, default=None, help="Path to YAML config (currently unused)")
-    parser.add_argument("--base_model", type=str, default="Qwen/Qwen2.5-7B-Coder-Instruct")
+    parser.add_argument(
+        "--deepspeed", type=str, default="training/configs/deepspeed_zero3.json"
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to YAML config (currently unused)",
+    )
+    parser.add_argument(
+        "--base_model", type=str, default="Qwen/Qwen2.5-7B-Coder-Instruct"
+    )
     return parser.parse_args()
 
 

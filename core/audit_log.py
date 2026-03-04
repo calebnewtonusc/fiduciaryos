@@ -32,7 +32,7 @@ import hashlib
 import json
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -47,23 +47,23 @@ class AuditEntry:
     """A single audit log entry."""
 
     entry_id: str
-    timestamp_ns: int                   # Nanoseconds since epoch
-    timestamp_iso: str                  # Human-readable ISO 8601
-    client_id_hash: str                 # SHA-256 of client_id (PII protection)
-    policy_artifact_hash: str           # SHA-256 of the active Policy Artifact
-    model_checkpoint: str               # Model version / commit hash
-    action_type: str                    # BUY | SELL | HOLD | REBALANCE | HARVEST | ALERT
-    reasoning: str                      # Model's chain-of-thought justification
-    proposed_action: dict[str, Any]     # Full action specification
-    policy_check_passed: bool           # Did the action pass Policy Artifact verification?
-    policy_check_detail: str            # What was checked (or what violation was found)
+    timestamp_ns: int  # Nanoseconds since epoch
+    timestamp_iso: str  # Human-readable ISO 8601
+    client_id_hash: str  # SHA-256 of client_id (PII protection)
+    policy_artifact_hash: str  # SHA-256 of the active Policy Artifact
+    model_checkpoint: str  # Model version / commit hash
+    action_type: str  # BUY | SELL | HOLD | REBALANCE | HARVEST | ALERT
+    reasoning: str  # Model's chain-of-thought justification
+    proposed_action: dict[str, Any]  # Full action specification
+    policy_check_passed: bool  # Did the action pass Policy Artifact verification?
+    policy_check_detail: str  # What was checked (or what violation was found)
     portfolio_snapshot: dict[str, Any]  # Portfolio state at time of decision
-    market_data_hash: str               # Hash of market data used (for replay)
-    executed: bool                      # Was the action actually executed?
-    execution_result: str               # "SUCCESS" | "FAILED" | "REJECTED" | "PENDING"
-    previous_entry_hash: str            # Hash of previous entry (chain integrity)
-    entry_hash: str = ""                # Hash of this entry (computed after construction)
-    signature: str = ""                 # RSA signature of entry_hash
+    market_data_hash: str  # Hash of market data used (for replay)
+    executed: bool  # Was the action actually executed?
+    execution_result: str  # "SUCCESS" | "FAILED" | "REJECTED" | "PENDING"
+    previous_entry_hash: str  # Hash of previous entry (chain integrity)
+    entry_hash: str = ""  # Hash of this entry (computed after construction)
+    signature: str = ""  # RSA signature of entry_hash
 
 
 class AuditLog:
@@ -91,10 +91,15 @@ class AuditLog:
         self._private_key = None
 
         # Load signing key if available
-        key_path = Path(signing_key_path or os.environ.get("POLICY_SIGNING_KEY_PATH", ".keys/policy_signing_key.pem"))
+        key_path = Path(
+            signing_key_path
+            or os.environ.get("POLICY_SIGNING_KEY_PATH", ".keys/policy_signing_key.pem")
+        )
         if key_path.exists():
             with open(key_path, "rb") as f:
-                self._private_key = serialization.load_pem_private_key(f.read(), password=None)
+                self._private_key = serialization.load_pem_private_key(
+                    f.read(), password=None
+                )
 
         # Load existing entries
         self._load_existing()
@@ -128,7 +133,9 @@ class AuditLog:
             Completed and signed AuditEntry.
         """
         now_ns = time.time_ns()
-        entry_id = hashlib.sha256(f"{self.client_id_hash}{now_ns}".encode()).hexdigest()[:16]
+        entry_id = hashlib.sha256(
+            f"{self.client_id_hash}{now_ns}".encode()
+        ).hexdigest()[:16]
 
         entry = AuditEntry(
             entry_id=entry_id,
@@ -141,7 +148,8 @@ class AuditLog:
             reasoning=reasoning,
             proposed_action=proposed_action,
             policy_check_passed=policy_check_passed,
-            policy_check_detail=policy_check_detail or ("OK" if policy_check_passed else "VIOLATION"),
+            policy_check_detail=policy_check_detail
+            or ("OK" if policy_check_passed else "VIOLATION"),
             portfolio_snapshot=portfolio_snapshot,
             market_data_hash=market_data_hash,
             executed=executed,
@@ -150,13 +158,18 @@ class AuditLog:
         )
 
         # Compute entry hash (excluding signature)
-        entry_data = {k: v for k, v in asdict(entry).items() if k not in ("entry_hash", "signature")}
+        entry_data = {
+            k: v
+            for k, v in asdict(entry).items()
+            if k not in ("entry_hash", "signature")
+        }
         canonical = json.dumps(entry_data, sort_keys=True, separators=(",", ":"))
         entry.entry_hash = hashlib.sha256(canonical.encode()).hexdigest()
 
         # Sign if key available
         if self._private_key:
             import base64
+
             sig = self._private_key.sign(
                 entry.entry_hash.encode(),
                 padding.PKCS1v15(),
@@ -197,7 +210,11 @@ class AuditLog:
                 return False
 
             # Recompute entry hash
-            entry_data = {k: v for k, v in asdict(entry).items() if k not in ("entry_hash", "signature")}
+            entry_data = {
+                k: v
+                for k, v in asdict(entry).items()
+                if k not in ("entry_hash", "signature")
+            }
             canonical = json.dumps(entry_data, sort_keys=True, separators=(",", ":"))
             expected_hash = hashlib.sha256(canonical.encode()).hexdigest()
 
@@ -250,7 +267,9 @@ class AuditLog:
             "generated_at": datetime.utcnow().isoformat(),
             "client_id_hash": self.client_id_hash,
             "total_decisions": len(self._entries),
-            "policy_violations": len([e for e in self._entries if not e.policy_check_passed]),
+            "policy_violations": len(
+                [e for e in self._entries if not e.policy_check_passed]
+            ),
             "chain_integrity": self.verify_chain_integrity(),
             "action_summary": {},
             "entries": [asdict(e) for e in self._entries],
@@ -258,6 +277,7 @@ class AuditLog:
 
         # Action type counts
         from collections import Counter
+
         counts = Counter(e.action_type for e in self._entries)
         output["action_summary"] = dict(counts)
 

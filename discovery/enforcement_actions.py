@@ -34,7 +34,6 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import requests
 from loguru import logger
@@ -45,19 +44,19 @@ class EnforcementAction:
     """A single enforcement action case."""
 
     action_id: str
-    source: str          # "SEC_LIT_RELEASE" | "SEC_ADMIN" | "FINRA_AWC" | "FINRA_DISC"
-    entity_name: str     # Respondent (adviser firm or individual)
+    source: str  # "SEC_LIT_RELEASE" | "SEC_ADMIN" | "FINRA_AWC" | "FINRA_DISC"
+    entity_name: str  # Respondent (adviser firm or individual)
     action_date: str
-    case_summary: str    # Full case description
-    violations_found: list[str]   # Specific violations cited
-    charges: list[str]            # Statutory charges (IA Act §206, etc.)
-    penalty_usd: float            # Monetary penalty
-    outcome: str                  # "SETTLED" | "CONTESTED" | "DEFAULT"
+    case_summary: str  # Full case description
+    violations_found: list[str]  # Specific violations cited
+    charges: list[str]  # Statutory charges (IA Act §206, etc.)
+    penalty_usd: float  # Monetary penalty
+    outcome: str  # "SETTLED" | "CONTESTED" | "DEFAULT"
 
     # Extracted for training pairs
-    conduct_description: str = ""    # What the adviser actually did
+    conduct_description: str = ""  # What the adviser actually did
     violation_explanation: str = ""  # Why it violated fiduciary duty
-    corrective_action: str = ""      # What should have been done
+    corrective_action: str = ""  # What should have been done
 
 
 @dataclass
@@ -65,7 +64,7 @@ class ViolationPair:
     """A training pair for fiduciary violation recognition."""
 
     pair_id: str
-    prompt: str    # Description of adviser conduct (WITHOUT labels)
+    prompt: str  # Description of adviser conduct (WITHOUT labels)
     response: str  # Explanation: what violated, why, and what should have happened
     action_id: str
     violation_types: list[str]
@@ -110,10 +109,12 @@ class EnforcementActionCrawler:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "FiduciaryOS Research calebnewtonusc@github.com",
-            "Accept": "text/html,application/json",
-        })
+        self.session.headers.update(
+            {
+                "User-Agent": "FiduciaryOS Research calebnewtonusc@github.com",
+                "Accept": "text/html,application/json",
+            }
+        )
 
     def crawl_sec_lit_releases(
         self,
@@ -155,7 +156,8 @@ class EnforcementActionCrawler:
                 # Parse year index page for release links
                 release_links = re.findall(
                     r'href="(/litigation/litreleases/(?:\d{4}/)?lr[\d]+\.htm)"',
-                    resp.text, re.IGNORECASE
+                    resp.text,
+                    re.IGNORECASE,
                 )
 
                 for rel_path in release_links:
@@ -170,7 +172,9 @@ class EnforcementActionCrawler:
                     if not release_resp:
                         continue
 
-                    action = self._parse_sec_lit_release(release_id, release_resp.text, year)
+                    action = self._parse_sec_lit_release(
+                        release_id, release_resp.text, year
+                    )
                     if action and self._is_ia_relevant(action):
                         with open(output_file, "a") as f:
                             f.write(json.dumps(asdict(action)) + "\n")
@@ -207,18 +211,16 @@ class EnforcementActionCrawler:
         Returns:
             Number of actions saved.
         """
-        output_file = self.output_dir / "finra_actions.jsonl"
+        self.output_dir / "finra_actions.jsonl"
         seen_file = self.output_dir / "finra_seen_ids.txt"
-        seen_ids: set[str] = set()
         if seen_file.exists():
-            seen_ids = set(seen_file.read_text().splitlines())
+            set(seen_file.read_text().splitlines())
 
         total_saved = 0
 
         # FINRA disciplinary database search API
         # Note: This uses FINRA's public broker check API
         # Full crawler would use Playwright for the web interface
-        search_url = "https://www.finra.org/rules-guidance/oversight-enforcement/finra-disciplinary-actions-online"
 
         # For production: use FINRA's downloadable monthly action spreadsheets
         # Available at: https://www.finra.org/rules-guidance/oversight-enforcement/finra-disciplinary-actions-online
@@ -297,7 +299,9 @@ class EnforcementActionCrawler:
                         logger.debug(f"Could not parse action: {e}")
                         continue
 
-        logger.info(f"Violation pair generation complete: {total_pairs} pairs from {len(source_files)} files")
+        logger.info(
+            f"Violation pair generation complete: {total_pairs} pairs from {len(source_files)} files"
+        )
         return total_pairs
 
     def _action_to_pairs(self, action: EnforcementAction) -> list[ViolationPair]:
@@ -315,21 +319,23 @@ class EnforcementActionCrawler:
             f"Analyze whether this conduct violates the adviser's fiduciary duty, "
             f"and explain any violations in detail."
         )
-        response = (
-            f"{action.violation_explanation}\n\n"
-        )
+        response = f"{action.violation_explanation}\n\n"
         if action.corrective_action:
-            response += f"Appropriate conduct would have been: {action.corrective_action}"
+            response += (
+                f"Appropriate conduct would have been: {action.corrective_action}"
+            )
 
         if len(response) > 100:
-            pairs.append(ViolationPair(
-                pair_id=f"{action.action_id}_analysis",
-                prompt=prompt,
-                response=response,
-                action_id=action.action_id,
-                violation_types=action.violations_found,
-                severity=self._assess_severity(action),
-            ))
+            pairs.append(
+                ViolationPair(
+                    pair_id=f"{action.action_id}_analysis",
+                    prompt=prompt,
+                    response=response,
+                    action_id=action.action_id,
+                    violation_types=action.violations_found,
+                    severity=self._assess_severity(action),
+                )
+            )
 
         # Pair 2: Detection (multiple choice format)
         if len(action.violations_found) >= 2:
@@ -342,14 +348,16 @@ class EnforcementActionCrawler:
                 f"The most direct fiduciary violation is: {action.violations_found[0]}. "
                 f"{action.violation_explanation[:500]}"
             )
-            pairs.append(ViolationPair(
-                pair_id=f"{action.action_id}_detection",
-                prompt=detection_prompt,
-                response=detection_response,
-                action_id=action.action_id,
-                violation_types=action.violations_found[:1],
-                severity=self._assess_severity(action),
-            ))
+            pairs.append(
+                ViolationPair(
+                    pair_id=f"{action.action_id}_detection",
+                    prompt=detection_prompt,
+                    response=detection_response,
+                    action_id=action.action_id,
+                    violation_types=action.violations_found[:1],
+                    severity=self._assess_severity(action),
+                )
+            )
 
         return pairs
 
@@ -373,12 +381,15 @@ class EnforcementActionCrawler:
         # Extract entity name (usually in early paragraph)
         name_match = re.search(
             r"(?:against|charged|Commission|SEC)\s+([A-Z][A-Za-z\s,\.]+(?:LLC|Inc\.|Corp\.|LP|LLP|Ltd\.)?)",
-            text[:1000]
+            text[:1000],
         )
         entity_name = name_match.group(1).strip() if name_match else "Unknown"
 
         # Extract date
-        date_match = re.search(r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b", text[:500])
+        date_match = re.search(
+            r"\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}\b",
+            text[:500],
+        )
         action_date = date_match.group(0) if date_match else str(year)
 
         # Extract penalty
@@ -408,8 +419,13 @@ class EnforcementActionCrawler:
     def _is_ia_relevant(self, action: EnforcementAction) -> bool:
         """Check if action involves investment adviser fiduciary issues."""
         ia_keywords = [
-            "investment adviser", "ia act", "§206", "section 206",
-            "fiduciary", "investment advisory", "registered investment"
+            "investment adviser",
+            "ia act",
+            "§206",
+            "section 206",
+            "fiduciary",
+            "investment advisory",
+            "registered investment",
         ]
         text = action.case_summary.lower()
         return any(kw in text for kw in ia_keywords)
@@ -428,9 +444,9 @@ class EnforcementActionCrawler:
                 amount_str = m.group(1).replace(",", "")
                 amount = float(amount_str)
                 group_lower = m.group(0).lower()
-                if "million" in group_lower or re.search(r'\bm\b', group_lower):
+                if "million" in group_lower or re.search(r"\bm\b", group_lower):
                     amount *= 1_000_000
-                elif "thousand" in group_lower or re.search(r'\bk\b', group_lower):
+                elif "thousand" in group_lower or re.search(r"\bk\b", group_lower):
                     amount *= 1_000
                 return amount
         return 0.0
@@ -454,12 +470,17 @@ class EnforcementActionCrawler:
     def _extract_conduct_section(self, text: str) -> str:
         """Extract the factual description of the adviser's conduct."""
         # Look for common section headers in enforcement documents
-        markers = ["The Commission alleges", "According to the complaint", "The complaint alleges",
-                   "Respondent", "The adviser"]
+        markers = [
+            "The Commission alleges",
+            "According to the complaint",
+            "The complaint alleges",
+            "Respondent",
+            "The adviser",
+        ]
         for marker in markers:
             idx = text.find(marker)
             if idx >= 0:
-                return text[idx:idx + 1500].strip()
+                return text[idx : idx + 1500].strip()
         return text[200:1700].strip()
 
     def _build_violation_explanation(self, charges: list[str], text: str) -> str:
@@ -478,7 +499,12 @@ class EnforcementActionCrawler:
 
     def _html_to_text(self, html: str) -> str:
         """Strip HTML tags and normalize whitespace."""
-        html = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", "", html, flags=re.DOTALL | re.IGNORECASE)
+        html = re.sub(
+            r"<(script|style)[^>]*>.*?</(script|style)>",
+            "",
+            html,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
         text = re.sub(r"<[^>]+>", " ", html)
         text = re.sub(r"&(?:amp|lt|gt|nbsp|quot);", " ", text)
         text = re.sub(r"\s+", " ", text)

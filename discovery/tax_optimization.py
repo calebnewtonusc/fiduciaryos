@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import time
 from pathlib import Path
 from typing import Any
@@ -273,7 +272,12 @@ TAX_LOSS_HARVESTING_RULES: dict[str, Any] = {
         ),
         "minimum_account_size": 250000,
         "typical_tax_alpha": "0.5% to 1.5% annually",
-        "providers": ["Parametric", "Aperio", "Direct Index", "Vanguard Personalized Indexing"],
+        "providers": [
+            "Parametric",
+            "Aperio",
+            "Direct Index",
+            "Vanguard Personalized Indexing",
+        ],
     },
     "optimal_realization": {
         "long_term_gain_vs_0_bracket": (
@@ -466,81 +470,103 @@ class TaxOptimizationCollector:
 
         # IRS publication Q&A pairs
         for pub in irs_records:
-            records.append({
-                "type": "tax_publication",
-                "question": f"What does IRS Publication {pub['publication_number']} cover?",
-                "answer": (
-                    f"IRS Publication {pub['publication_number']}, '{pub['title']}', covers: "
-                    + "; ".join(pub["key_topics"]) + "."
-                ),
-                "category": pub["relevance_category"],
-                "source": "irs",
-            })
-            for topic in pub["key_topics"]:
-                records.append({
-                    "type": "tax_topic",
-                    "question": f"Where can I find IRS guidance on {topic}?",
-                    "answer": f"IRS Publication {pub['publication_number']}, '{pub['title']}', addresses {topic}.",
+            records.append(
+                {
+                    "type": "tax_publication",
+                    "question": f"What does IRS Publication {pub['publication_number']} cover?",
+                    "answer": (
+                        f"IRS Publication {pub['publication_number']}, '{pub['title']}', covers: "
+                        + "; ".join(pub["key_topics"])
+                        + "."
+                    ),
                     "category": pub["relevance_category"],
                     "source": "irs",
-                })
+                }
+            )
+            for topic in pub["key_topics"]:
+                records.append(
+                    {
+                        "type": "tax_topic",
+                        "question": f"Where can I find IRS guidance on {topic}?",
+                        "answer": f"IRS Publication {pub['publication_number']}, '{pub['title']}', addresses {topic}.",
+                        "category": pub["relevance_category"],
+                        "source": "irs",
+                    }
+                )
 
         # Tax rate Q&A
         ltcg_rates = tax_rates.get("long_term_capital_gains", {})
         for filing_status, brackets in ltcg_rates.items():
             for bracket in brackets:
-                records.append({
-                    "type": "tax_rate",
-                    "question": (
-                        f"What is the long-term capital gains rate for a {filing_status.replace('_', ' ')} "
-                        f"filer with income up to ${bracket['max']:,}?" if bracket["max"] else
-                        f"What is the top long-term capital gains rate for a {filing_status.replace('_', ' ')} filer?"
-                    ),
-                    "answer": f"{bracket['rate'] * 100:.0f}%",
-                    "category": "capital_gains",
-                    "source": "irs_schedule",
-                    "year": tax_rates["year"],
-                })
+                records.append(
+                    {
+                        "type": "tax_rate",
+                        "question": (
+                            f"What is the long-term capital gains rate for a {filing_status.replace('_', ' ')} "
+                            f"filer with income up to ${bracket['max']:,}?"
+                            if bracket["max"]
+                            else f"What is the top long-term capital gains rate for a {filing_status.replace('_', ' ')} filer?"
+                        ),
+                        "answer": f"{bracket['rate'] * 100:.0f}%",
+                        "category": "capital_gains",
+                        "source": "irs_schedule",
+                        "year": tax_rates["year"],
+                    }
+                )
 
         # TLH rule Q&A
         wash_sale = tlh_rules.get("wash_sale_rule", {})
-        records.append({
-            "type": "tax_rule",
-            "question": "What is the wash sale rule and how does it affect tax-loss harvesting?",
-            "answer": wash_sale.get("description", "") + " " + wash_sale.get("treatment", ""),
-            "category": "tax_loss_harvesting",
-            "source": "irc_1091",
-        })
+        records.append(
+            {
+                "type": "tax_rule",
+                "question": "What is the wash sale rule and how does it affect tax-loss harvesting?",
+                "answer": wash_sale.get("description", "")
+                + " "
+                + wash_sale.get("treatment", ""),
+                "category": "tax_loss_harvesting",
+                "source": "irc_1091",
+            }
+        )
 
-        records.append({
-            "type": "tax_rule",
-            "question": "How many days does the wash sale window cover?",
-            "answer": (
-                f"The wash sale rule covers a {wash_sale.get('window_days', 30)}-day window "
-                "on both sides of the sale date, creating a 61-day blackout period total."
-            ),
-            "category": "tax_loss_harvesting",
-            "source": "irc_1091",
-        })
+        records.append(
+            {
+                "type": "tax_rule",
+                "question": "How many days does the wash sale window cover?",
+                "answer": (
+                    f"The wash sale rule covers a {wash_sale.get('window_days', 30)}-day window "
+                    "on both sides of the sale date, creating a 61-day blackout period total."
+                ),
+                "category": "tax_loss_harvesting",
+                "source": "irc_1091",
+            }
+        )
 
         # Asset location Q&A
-        for asset_type in asset_location.get("taxable_account_preferred", {}).get("asset_types", []):
-            records.append({
-                "type": "asset_location",
-                "question": f"Should {asset_type['asset']} be held in a taxable or tax-advantaged account?",
-                "answer": f"Taxable account. Reason: {asset_type['reason']}",
-                "category": "asset_location",
-                "source": "tax_efficiency_framework",
-            })
+        for asset_type in asset_location.get("taxable_account_preferred", {}).get(
+            "asset_types", []
+        ):
+            records.append(
+                {
+                    "type": "asset_location",
+                    "question": f"Should {asset_type['asset']} be held in a taxable or tax-advantaged account?",
+                    "answer": f"Taxable account. Reason: {asset_type['reason']}",
+                    "category": "asset_location",
+                    "source": "tax_efficiency_framework",
+                }
+            )
 
-        for asset_type in asset_location.get("tax_advantaged_preferred", {}).get("asset_types", []):
-            records.append({
-                "type": "asset_location",
-                "question": f"Should {asset_type['asset']} be held in a taxable or tax-advantaged account?",
-                "answer": f"Tax-advantaged account (401k/IRA). Reason: {asset_type['reason']}",
-                "category": "asset_location",
-                "source": "tax_efficiency_framework",
-            })
+        for asset_type in asset_location.get("tax_advantaged_preferred", {}).get(
+            "asset_types", []
+        ):
+            records.append(
+                {
+                    "type": "asset_location",
+                    "question": f"Should {asset_type['asset']} be held in a taxable or tax-advantaged account?",
+                    "answer": f"Tax-advantaged account (401k/IRA). Reason: {asset_type['reason']}",
+                    "category": "asset_location",
+                    "source": "tax_efficiency_framework",
+                }
+            )
 
         return records
 
@@ -558,7 +584,9 @@ class TaxOptimizationCollector:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Collect tax optimization knowledge for FiduciaryOS")
+    parser = argparse.ArgumentParser(
+        description="Collect tax optimization knowledge for FiduciaryOS"
+    )
     parser.add_argument("--output", default="data/raw/tax_data")
     args = parser.parse_args()
 

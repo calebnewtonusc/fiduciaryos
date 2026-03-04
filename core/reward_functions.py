@@ -20,21 +20,30 @@ import re
 
 IA_ACT_SECTIONS = {
     "206(1)": ["fraud", "deceit", "self-dealing", "undisclosed conflict"],
-    "206(2)": ["negligent misrepresentation", "conflict", "omission", "false statement"],
+    "206(2)": [
+        "negligent misrepresentation",
+        "conflict",
+        "omission",
+        "false statement",
+    ],
     "206(4)": ["performance fee", "custody", "advertising", "proxy voting"],
 }
 
 FIDUCIARY_QUALITY_MARKERS = [
-    (r"§\s*206|section\s+206|advisers act", 0.30),      # Cites IA Act
-    (r"\$[\d,]+|\d+\s*basis\s*point|\bpercent\b", 0.30), # Quantifies impact
+    (r"§\s*206|section\s+206|advisers act", 0.30),  # Cites IA Act
+    (r"\$[\d,]+|\d+\s*basis\s*point|\bpercent\b", 0.30),  # Quantifies impact
     (r"conflict\s+of\s+interest|material\s+conflict", 0.20),  # Identifies conflict
-    (r"compliant\s+conduct|should\s+have|alternative\s+approach", 0.20),  # Recommends fix
+    (
+        r"compliant\s+conduct|should\s+have|alternative\s+approach",
+        0.20,
+    ),  # Recommends fix
 ]
 
 
 # ---------------------------------------------------------------------------
 # Reward functions
 # ---------------------------------------------------------------------------
+
 
 def compute_policy_compliance_reward(
     response: str, ground_truth_violations: list[str]
@@ -50,7 +59,10 @@ def compute_policy_compliance_reward(
         Reward in [-0.5, 1.0].
     """
     if not ground_truth_violations:
-        if any(word in response.lower() for word in ["compliant", "no violation", "permissible"]):
+        if any(
+            word in response.lower()
+            for word in ["compliant", "no violation", "permissible"]
+        ):
             return 1.0
         return 0.0
 
@@ -87,7 +99,9 @@ def compute_format_reward(response: str) -> float:
     """
     Reward for producing well-structured, parseable responses.
     """
-    has_headers = bool(re.search(r"\*\*[A-Za-z\s]+\*\*|^##?\s+[A-Za-z]", response, re.MULTILINE))
+    has_headers = bool(
+        re.search(r"\*\*[A-Za-z\s]+\*\*|^##?\s+[A-Za-z]", response, re.MULTILINE)
+    )
     has_numbers = bool(re.search(r"\$[\d,]+|[\d.]+%", response))
     has_length = len(response) >= 300
 
@@ -116,7 +130,12 @@ def _violation_keywords(violation_type: str) -> list[str]:
         "undisclosed_conflict": ["conflict", "disclose", "undisclosed", "material"],
         "self_dealing": ["self-deal", "personal benefit", "own account", "self deal"],
         "churning": ["churn", "excessive trading", "unnecessary trade"],
-        "unsuitable_advice": ["unsuitable", "suitability", "not appropriate", "best interest"],
+        "unsuitable_advice": [
+            "unsuitable",
+            "suitability",
+            "not appropriate",
+            "best interest",
+        ],
         "misrepresentation": ["misrepresent", "false", "mislead", "material omission"],
         "excessive_fees": ["excessive fee", "unreasonable fee", "overcharge"],
         "front_running": ["front run", "ahead of client", "personal account"],

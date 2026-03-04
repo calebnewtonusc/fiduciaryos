@@ -20,10 +20,8 @@ Usage:
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
-from typing import Any
+from dataclasses import dataclass
+from datetime import date, timedelta
 
 from loguru import logger
 
@@ -60,9 +58,11 @@ class HarvestCandidate:
     lots: list[TaxLot]
     unrealized_loss_usd: float
     tax_savings_estimate_usd: float
-    wash_sale_safe: bool          # True if no substantially identical security purchased in window
+    wash_sale_safe: (
+        bool  # True if no substantially identical security purchased in window
+    )
     replacement_tickers: list[str]  # Similar-but-not-identical replacement securities
-    net_benefit_usd: float        # tax_savings - transaction_costs
+    net_benefit_usd: float  # tax_savings - transaction_costs
 
 
 @dataclass
@@ -79,29 +79,29 @@ class AssetLocationRecommendation:
 # Substantially similar ticker pairs (for wash sale detection)
 # Selling VTI and buying IVV within 30 days = wash sale violation
 SUBSTANTIALLY_IDENTICAL_GROUPS: list[set[str]] = [
-    {"VTI", "ITOT", "SCHB", "SPTM"},          # US Total Market ETFs
-    {"VXUS", "IXUS", "SPDW", "VEU"},           # International ETFs
-    {"BND", "AGG", "SCHZ", "FBND"},             # US Bond ETFs
-    {"QQQ", "QQQM", "IWY"},                     # Nasdaq 100 ETFs
-    {"SPY", "IVV", "VOO", "SPLG"},              # S&P 500 ETFs
-    {"VWO", "IEMG", "SCHE"},                    # Emerging Markets ETFs
-    {"VNQ", "IYR", "SCHH"},                     # US REIT ETFs
-    {"GLD", "IAU", "SGOL"},                     # Gold ETFs
+    {"VTI", "ITOT", "SCHB", "SPTM"},  # US Total Market ETFs
+    {"VXUS", "IXUS", "SPDW", "VEU"},  # International ETFs
+    {"BND", "AGG", "SCHZ", "FBND"},  # US Bond ETFs
+    {"QQQ", "QQQM", "IWY"},  # Nasdaq 100 ETFs
+    {"SPY", "IVV", "VOO", "SPLG"},  # S&P 500 ETFs
+    {"VWO", "IEMG", "SCHE"},  # Emerging Markets ETFs
+    {"VNQ", "IYR", "SCHH"},  # US REIT ETFs
+    {"GLD", "IAU", "SGOL"},  # Gold ETFs
 ]
 
 # Asset class tax efficiency (higher = more tax-efficient, better in taxable)
 # Sources: Vanguard, Morningstar research on tax drag by asset class
 ASSET_CLASS_TAX_EFFICIENCY: dict[str, float] = {
-    "us_equity_index": 0.95,       # Very low turnover, qualified dividends
+    "us_equity_index": 0.95,  # Very low turnover, qualified dividends
     "international_equity_index": 0.88,  # Low turnover, some foreign tax credit
-    "municipal_bonds": 0.99,       # Tax-exempt interest — always taxable account
-    "us_equity_active": 0.60,      # High turnover → short-term gains
-    "us_bonds": 0.40,              # Ordinary income tax on interest
-    "reits": 0.30,                 # Non-qualified dividends, high ordinary income
-    "high_yield_bonds": 0.35,      # Ordinary income
-    "commodities": 0.50,           # Mark-to-market tax treatment
-    "international_bonds": 0.45,   # Ordinary income + no foreign tax credit
-    "tips": 0.20,                  # Phantom income on inflation adjustment
+    "municipal_bonds": 0.99,  # Tax-exempt interest — always taxable account
+    "us_equity_active": 0.60,  # High turnover → short-term gains
+    "us_bonds": 0.40,  # Ordinary income tax on interest
+    "reits": 0.30,  # Non-qualified dividends, high ordinary income
+    "high_yield_bonds": 0.35,  # Ordinary income
+    "commodities": 0.50,  # Mark-to-market tax treatment
+    "international_bonds": 0.45,  # Ordinary income + no foreign tax credit
+    "tips": 0.20,  # Phantom income on inflation adjustment
 }
 
 
@@ -168,7 +168,8 @@ class TaxOptimizer:
                 continue
 
             total_loss = sum(
-                lot.unrealized_gain_loss(price) for lot in lots
+                lot.unrealized_gain_loss(price)
+                for lot in lots
                 if lot.unrealized_gain_loss(price) < 0
             )
 
@@ -179,10 +180,15 @@ class TaxOptimizer:
             wash_safe = self._is_wash_sale_safe(ticker, recent_purchases)
 
             # Estimate tax savings
-            tax_rate = self.long_term_rate if all(
-                lot.is_long_term() for lot in lots
-                if lot.unrealized_gain_loss(price) < 0
-            ) else (self.federal_rate + self.state_rate)
+            tax_rate = (
+                self.long_term_rate
+                if all(
+                    lot.is_long_term()
+                    for lot in lots
+                    if lot.unrealized_gain_loss(price) < 0
+                )
+                else (self.federal_rate + self.state_rate)
+            )
             tax_savings = abs(total_loss) * tax_rate
 
             # Transaction cost
@@ -192,15 +198,17 @@ class TaxOptimizer:
             # Find replacement securities
             replacements = self._find_replacements(ticker)
 
-            candidates.append(HarvestCandidate(
-                ticker=ticker,
-                lots=[l for l in lots if l.unrealized_gain_loss(price) < 0],
-                unrealized_loss_usd=round(total_loss, 2),
-                tax_savings_estimate_usd=round(tax_savings, 2),
-                wash_sale_safe=wash_safe,
-                replacement_tickers=replacements,
-                net_benefit_usd=round(tax_savings - tx_cost, 2),
-            ))
+            candidates.append(
+                HarvestCandidate(
+                    ticker=ticker,
+                    lots=[l for l in lots if l.unrealized_gain_loss(price) < 0],
+                    unrealized_loss_usd=round(total_loss, 2),
+                    tax_savings_estimate_usd=round(tax_savings, 2),
+                    wash_sale_safe=wash_safe,
+                    replacement_tickers=replacements,
+                    net_benefit_usd=round(tax_savings - tx_cost, 2),
+                )
+            )
 
         # Sort by net benefit (best first)
         candidates.sort(key=lambda c: c.net_benefit_usd, reverse=True)
@@ -242,9 +250,13 @@ class TaxOptimizer:
                 pnl = lot.unrealized_gain_loss(current_price)
                 is_lt = lot.is_long_term(today)
                 if pnl < 0:
-                    return (0 if not is_lt else 1, pnl)  # short-term losses first (higher tax rate)
+                    return (
+                        0 if not is_lt else 1,
+                        pnl,
+                    )  # short-term losses first (higher tax rate)
                 else:
-                    return (2 if is_lt else 3, pnl)     # long-term gains last
+                    return (2 if is_lt else 3, pnl)  # long-term gains last
+
             lots.sort(key=lot_priority)
         elif strategy == "fifo":
             lots.sort(key=lambda l: l.purchase_date)
@@ -260,14 +272,16 @@ class TaxOptimizer:
             remaining -= shares_from_lot
 
         if remaining > 0.001:
-            logger.warning(f"Could not fulfill full sale of {shares_to_sell} shares of {ticker}")
+            logger.warning(
+                f"Could not fulfill full sale of {shares_to_sell} shares of {ticker}"
+            )
 
         return selected
 
     def optimize_asset_location(
         self,
         holdings: dict[str, dict[str, float]],  # account_type → {ticker: value}
-        asset_class_map: dict[str, str],          # ticker → asset_class
+        asset_class_map: dict[str, str],  # ticker → asset_class
     ) -> list[AssetLocationRecommendation]:
         """
         Recommend optimal asset location across account types.
@@ -291,32 +305,38 @@ class TaxOptimizer:
 
                 # Tax-inefficient assets (efficiency < 0.6) belong in tax-advantaged accounts
                 if efficiency < 0.6 and account_type == "taxable":
-                    estimated_drag_reduction = value * (1 - efficiency) * (self.federal_rate + self.state_rate)
-                    recommendations.append(AssetLocationRecommendation(
-                        asset_class=asset_class,
-                        current_account=account_type,
-                        recommended_account="ira",
-                        rationale=(
-                            f"{asset_class} has high tax drag (efficiency {efficiency:.0%}). "
-                            f"Moving to IRA eliminates ordinary income on distributions."
-                        ),
-                        estimated_annual_tax_drag_reduction_pct=round(
-                            estimated_drag_reduction / value * 100, 2
-                        ),
-                    ))
+                    estimated_drag_reduction = (
+                        value * (1 - efficiency) * (self.federal_rate + self.state_rate)
+                    )
+                    recommendations.append(
+                        AssetLocationRecommendation(
+                            asset_class=asset_class,
+                            current_account=account_type,
+                            recommended_account="ira",
+                            rationale=(
+                                f"{asset_class} has high tax drag (efficiency {efficiency:.0%}). "
+                                f"Moving to IRA eliminates ordinary income on distributions."
+                            ),
+                            estimated_annual_tax_drag_reduction_pct=round(
+                                estimated_drag_reduction / value * 100, 2
+                            ),
+                        )
+                    )
 
                 # Highly tax-efficient assets don't need tax shelter (opportunity cost of IRA)
                 elif efficiency > 0.90 and account_type in ("ira", "401k"):
-                    recommendations.append(AssetLocationRecommendation(
-                        asset_class=asset_class,
-                        current_account=account_type,
-                        recommended_account="taxable",
-                        rationale=(
-                            f"{asset_class} is very tax-efficient (efficiency {efficiency:.0%}). "
-                            f"Freeing tax-advantaged space for less efficient assets is optimal."
-                        ),
-                        estimated_annual_tax_drag_reduction_pct=0.1,  # Small indirect benefit
-                    ))
+                    recommendations.append(
+                        AssetLocationRecommendation(
+                            asset_class=asset_class,
+                            current_account=account_type,
+                            recommended_account="taxable",
+                            rationale=(
+                                f"{asset_class} is very tax-efficient (efficiency {efficiency:.0%}). "
+                                f"Freeing tax-advantaged space for less efficient assets is optimal."
+                            ),
+                            estimated_annual_tax_drag_reduction_pct=0.1,  # Small indirect benefit
+                        )
+                    )
 
         recommendations.sort(
             key=lambda r: r.estimated_annual_tax_drag_reduction_pct, reverse=True
@@ -355,7 +375,9 @@ class TaxOptimizer:
         # Long-term gains tax drag (deferred, discounted)
         if holding_period_years > 1:
             # Discount tax deferral benefit
-            lt_drag = (pre_tax_return - yield_ - turnover * pre_tax_return) * self.long_term_rate
+            lt_drag = (
+                pre_tax_return - yield_ - turnover * pre_tax_return
+            ) * self.long_term_rate
             lt_drag /= (1 + pre_tax_return) ** holding_period_years  # Discounted
         else:
             lt_drag = 0.0

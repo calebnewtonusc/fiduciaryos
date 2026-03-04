@@ -30,7 +30,7 @@ from loguru import logger
 
 from core.audit_log import AuditLog
 from core.policy_compiler import PolicyArtifact, PolicyCompiler, PolicyViolation
-from core.risk_guardian import AlertLevel, PortfolioState, RiskGuardian
+from core.risk_guardian import PortfolioState, RiskGuardian
 from core.tax_optimizer import TaxOptimizer
 
 
@@ -45,7 +45,7 @@ class PortfolioAnalysisResult:
     recommended_actions: list[dict]
     tax_harvest_candidates: list[dict]
     fiduciary_compliance_score: float
-    policy_violations: list[str]       # Should always be empty
+    policy_violations: list[str]  # Should always be empty
     audit_entry_id: str
 
 
@@ -70,6 +70,7 @@ class PortfolioAgent:
 
         if model_url:
             import openai
+
             self._llm_client = openai.OpenAI(
                 base_url=f"{model_url}/v1",
                 api_key=os.environ.get("VLLM_API_KEY", "dummy"),
@@ -105,7 +106,9 @@ class PortfolioAgent:
 
         # Step 1: Risk assessment
         risk_status = guardian.assess(portfolio)
-        logger.info(f"Risk status: {risk_status.level.name} ({len(risk_status.alerts)} alerts)")
+        logger.info(
+            f"Risk status: {risk_status.level.name} ({len(risk_status.alerts)} alerts)"
+        )
 
         # Step 2: Build model prompt
         prompt = self._build_prompt(portfolio, policy_artifact, risk_status)
@@ -122,7 +125,9 @@ class PortfolioAgent:
 
             # Risk Guardian check first
             if action_type in risk_status.blocked_action_types:
-                logger.warning(f"Action {action_type} blocked by Risk Guardian (level {risk_status.level.name})")
+                logger.warning(
+                    f"Action {action_type} blocked by Risk Guardian (level {risk_status.level.name})"
+                )
                 policy_violations.append(
                     f"{action_type} blocked by Risk Guardian ({risk_status.level.name})"
                 )
@@ -142,7 +147,10 @@ class PortfolioAgent:
                         reasoning=f"Action proposed but blocked by policy: {e.constraint}",
                         proposed_action=action,
                         policy_check_passed=False,
-                        portfolio_snapshot={"client_id": client_id, "value": portfolio.total_value_usd},
+                        portfolio_snapshot={
+                            "client_id": client_id,
+                            "value": portfolio.total_value_usd,
+                        },
                         policy_check_detail=str(e),
                     )
             else:
@@ -165,7 +173,9 @@ class PortfolioAgent:
             ]
 
         # Step 7: Audit log entry
-        model_reasoning = raw_recommendations[0].get("reasoning", "") if raw_recommendations else ""
+        model_reasoning = (
+            raw_recommendations[0].get("reasoning", "") if raw_recommendations else ""
+        )
         entry = audit_log.record(
             action_type="PORTFOLIO_ANALYSIS",
             reasoning=model_reasoning,
@@ -177,7 +187,9 @@ class PortfolioAgent:
                 "drawdown": portfolio.drawdown_from_peak,
                 "risk_level": risk_status.level.name,
             },
-            policy_check_detail="All actions passed" if not policy_violations else "; ".join(policy_violations),
+            policy_check_detail="All actions passed"
+            if not policy_violations
+            else "; ".join(policy_violations),
         )
 
         # Compliance score: 1.0 if no violations, degrades per violation
@@ -214,7 +226,7 @@ class PortfolioAgent:
             "Your recommendations must satisfy fiduciary duty to the client. "
             "Always prioritize the client's best interest over any other consideration.",
             "",
-            f"PORTFOLIO STATE:",
+            "PORTFOLIO STATE:",
             f"  Total value: ${portfolio.total_value_usd:,.0f}",
             f"  Drawdown from peak: {portfolio.drawdown_from_peak:.1%}",
             f"  Daily volatility (annualized): {portfolio.daily_volatility * (252**0.5):.1%}",
@@ -223,27 +235,34 @@ class PortfolioAgent:
         ]
 
         if risk_status.alerts:
-            prompt_parts.extend(["", "RISK ALERTS:"] + [f"  - {a}" for a in risk_status.alerts])
+            prompt_parts.extend(
+                ["", "RISK ALERTS:"] + [f"  - {a}" for a in risk_status.alerts]
+            )
 
         if policy:
-            prompt_parts.extend([
-                "", "CLIENT POLICY (summary):",
-                f"  Risk tolerance: {policy.risk_profile.get('tolerance', 'moderate')}",
-                f"  Max drawdown tolerance: {policy.risk_profile.get('max_drawdown_tolerance', 0.18):.0%}",
-                f"  Target allocation: {json.dumps(policy.target_allocation)}",
-                f"  Tax status: {policy.tax_strategy.get('tax_status', 'taxable')}",
-            ])
+            prompt_parts.extend(
+                [
+                    "",
+                    "CLIENT POLICY (summary):",
+                    f"  Risk tolerance: {policy.risk_profile.get('tolerance', 'moderate')}",
+                    f"  Max drawdown tolerance: {policy.risk_profile.get('max_drawdown_tolerance', 0.18):.0%}",
+                    f"  Target allocation: {json.dumps(policy.target_allocation)}",
+                    f"  Tax status: {policy.tax_strategy.get('tax_status', 'taxable')}",
+                ]
+            )
 
-        prompt_parts.extend([
-            "",
-            "TASK: Provide 1-3 portfolio management recommendations. "
-            "Each recommendation must include: type (BUY/SELL/HOLD/REBALANCE/HARVEST), "
-            "ticker (if applicable), reasoning, and estimated tax impact.",
-            "",
-            "Respond in JSON format: {\"recommendations\": [{\"type\": \"...\", "
-            "\"ticker\": \"...\", \"reasoning\": \"...\", \"amount_usd\": 0, "
-            "\"pct_of_portfolio\": 0.0, \"tax_impact_usd\": 0}]}",
-        ])
+        prompt_parts.extend(
+            [
+                "",
+                "TASK: Provide 1-3 portfolio management recommendations. "
+                "Each recommendation must include: type (BUY/SELL/HOLD/REBALANCE/HARVEST), "
+                "ticker (if applicable), reasoning, and estimated tax impact.",
+                "",
+                'Respond in JSON format: {"recommendations": [{"type": "...", '
+                '"ticker": "...", "reasoning": "...", "amount_usd": 0, '
+                '"pct_of_portfolio": 0.0, "tax_impact_usd": 0}]}',
+            ]
+        )
 
         return "\n".join(prompt_parts)
 
@@ -251,13 +270,22 @@ class PortfolioAgent:
         """Get portfolio recommendations from FiduciaryOS model."""
         if self._llm_client is None:
             # Fallback: return a HOLD recommendation
-            return [{"type": "HOLD", "reasoning": "No model connected — holding all positions", "amount_usd": 0}]
+            return [
+                {
+                    "type": "HOLD",
+                    "reasoning": "No model connected — holding all positions",
+                    "amount_usd": 0,
+                }
+            ]
 
         try:
             resp = self._llm_client.chat.completions.create(
                 model="fiduciaryos",
                 messages=[
-                    {"role": "system", "content": "You are FiduciaryOS, a fiduciary-grade autonomous wealth manager."},
+                    {
+                        "role": "system",
+                        "content": "You are FiduciaryOS, a fiduciary-grade autonomous wealth manager.",
+                    },
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=1024,

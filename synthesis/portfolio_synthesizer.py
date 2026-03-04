@@ -25,8 +25,6 @@ from __future__ import annotations
 import json
 import os
 import random
-import re
-import time
 from pathlib import Path
 from typing import Any
 
@@ -35,20 +33,30 @@ from loguru import logger
 
 try:
     import anthropic
+
     HAS_ANTHROPIC = True
 except ImportError:
     HAS_ANTHROPIC = False
 
 try:
     from tenacity import retry, stop_after_attempt, wait_exponential
+
     HAS_TENACITY = True
 except ImportError:
     HAS_TENACITY = False
+
     def retry(*args, **kwargs):
-        def decorator(fn): return fn
+        def decorator(fn):
+            return fn
+
         return decorator
-    def stop_after_attempt(n): return None
-    def wait_exponential(**kwargs): return None
+
+    def stop_after_attempt(n):
+        return None
+
+    def wait_exponential(**kwargs):
+        return None
+
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 VLLM_URLS = os.environ.get(
@@ -107,7 +115,11 @@ CLIENT_PROFILES: list[dict[str, Any]] = [
         "tax_bracket": ["32%", "35%", "37%"],
         "account_types": ["401(k)", "IRA", "taxable", "529"],
         "goals": ["retirement", "college funding", "wealth transfer"],
-        "special_considerations": ["concentrated stock position", "executive compensation", "deferred comp"],
+        "special_considerations": [
+            "concentrated stock position",
+            "executive compensation",
+            "deferred comp",
+        ],
     },
     {
         "type": "pre_retiree",
@@ -119,7 +131,11 @@ CLIENT_PROFILES: list[dict[str, Any]] = [
         "tax_bracket": ["24%", "32%", "35%"],
         "account_types": ["401(k)", "IRA", "Roth", "taxable", "HSA"],
         "goals": ["retirement income", "sequence of returns risk management"],
-        "special_considerations": ["Roth conversion ladder", "Medicare planning", "catch-up contributions"],
+        "special_considerations": [
+            "Roth conversion ladder",
+            "Medicare planning",
+            "catch-up contributions",
+        ],
     },
     {
         "type": "retiree",
@@ -131,7 +147,12 @@ CLIENT_PROFILES: list[dict[str, Any]] = [
         "tax_bracket": ["12%", "22%", "24%"],
         "account_types": ["IRA", "Roth", "taxable", "annuity"],
         "goals": ["income", "capital preservation", "legacy"],
-        "special_considerations": ["RMDs", "Social Security optimization", "Medicare surcharges (IRMAA)", "LTC planning"],
+        "special_considerations": [
+            "RMDs",
+            "Social Security optimization",
+            "Medicare surcharges (IRMAA)",
+            "LTC planning",
+        ],
     },
     {
         "type": "high_net_worth",
@@ -143,7 +164,12 @@ CLIENT_PROFILES: list[dict[str, Any]] = [
         "tax_bracket": ["37%"],
         "account_types": ["taxable", "IRA", "trust", "charitable vehicles"],
         "goals": ["wealth preservation", "estate planning", "philanthropy"],
-        "special_considerations": ["estate tax planning", "grantor trusts", "QOZ investing", "direct indexing"],
+        "special_considerations": [
+            "estate tax planning",
+            "grantor trusts",
+            "QOZ investing",
+            "direct indexing",
+        ],
     },
 ]
 
@@ -302,31 +328,54 @@ def _build_scenario_prompt(template: dict[str, Any]) -> str:
                 f"{profile['risk_tolerance']} risk tolerance, goals: {', '.join(profile['goals'])}"
             ),
             current_allocation=f"{random.randint(40, 90)}% equities / {random.randint(10, 50)}% bonds / "
-                               f"{random.randint(0, 10)}% alternatives",
+            f"{random.randint(0, 10)}% alternatives",
             unrealized_loss=random.randint(10000, min(assets // 5, 500000)),
-            losing_positions=random.choice([
-                "S&P 500 ETF and bond index funds",
-                "international equity ETF and REIT position",
-                "growth equity ETF and emerging markets ETF",
-                "individual tech stocks and sector ETFs",
-            ]),
+            losing_positions=random.choice(
+                [
+                    "S&P 500 ETF and bond index funds",
+                    "international equity ETF and REIT position",
+                    "growth equity ETF and emerging markets ETF",
+                    "individual tech stocks and sector ETFs",
+                ]
+            ),
             ira_balance=random.randint(100000, min(assets, 2000000)),
             retirement_bracket=random.choice(["12%", "22%", "24%"]),
             taxable=int(assets * 0.6),
             tax_deferred=int(assets * 0.4),
-            market_move=random.choice(["strong equity bull", "equity correction", "bond sell-off"]),
+            market_move=random.choice(
+                ["strong equity bull", "equity correction", "bond sell-off"]
+            ),
             current_equity=random.randint(55, 80),
             taxable_gains=random.randint(50000, 500000),
-            product=random.choice(["variable annuity", "whole life insurance", "non-traded REIT", "equity-indexed annuity"]),
+            product=random.choice(
+                [
+                    "variable annuity",
+                    "whole life insurance",
+                    "non-traded REIT",
+                    "equity-indexed annuity",
+                ]
+            ),
             compensation=random.choice(["6%", "7%", "8%"]),
-            alternative=random.choice(["term life + index fund", "low-cost index fund", "publicly traded REIT ETF"]),
+            alternative=random.choice(
+                [
+                    "term life + index fund",
+                    "low-cost index fund",
+                    "publicly traded REIT ETF",
+                ]
+            ),
             cost_difference=random.randint(2000, 15000),
             balance=random.randint(100000, 2000000),
             ss_income=random.randint(1500, 3500),
             annual_expenses=random.randint(60000, 200000),
             pct_in_single_stock=random.choice([30, 40, 50, 60, 70]),
             total_assets=assets,
-            company_type=random.choice(["publicly traded tech company", "large financial institution", "employer S-corp"]),
+            company_type=random.choice(
+                [
+                    "publicly traded tech company",
+                    "large financial institution",
+                    "employer S-corp",
+                ]
+            ),
             cost_basis=random.randint(10000, int(assets * 0.3)),
             current_value=random.randint(int(assets * 0.2), int(assets * 0.5)),
             portfolio=assets,
@@ -359,31 +408,54 @@ def _build_scenario_prompt(template: dict[str, Any]) -> str:
                         f"{profile['risk_tolerance']} risk tolerance, goals: {', '.join(profile['goals'])}"
                     ),
                     current_allocation=f"{random.randint(40, 90)}% equities / {random.randint(10, 50)}% bonds / "
-                                       f"{random.randint(0, 10)}% alternatives",
+                    f"{random.randint(0, 10)}% alternatives",
                     unrealized_loss=random.randint(10000, min(assets // 5, 500000)),
-                    losing_positions=random.choice([
-                        "S&P 500 ETF and bond index funds",
-                        "international equity ETF and REIT position",
-                        "growth equity ETF and emerging markets ETF",
-                        "individual tech stocks and sector ETFs",
-                    ]),
+                    losing_positions=random.choice(
+                        [
+                            "S&P 500 ETF and bond index funds",
+                            "international equity ETF and REIT position",
+                            "growth equity ETF and emerging markets ETF",
+                            "individual tech stocks and sector ETFs",
+                        ]
+                    ),
                     ira_balance=random.randint(100000, min(assets, 2000000)),
                     retirement_bracket=random.choice(["12%", "22%", "24%"]),
                     taxable=int(assets * 0.6),
                     tax_deferred=int(assets * 0.4),
-                    market_move=random.choice(["strong equity bull", "equity correction", "bond sell-off"]),
+                    market_move=random.choice(
+                        ["strong equity bull", "equity correction", "bond sell-off"]
+                    ),
                     current_equity=random.randint(55, 80),
                     taxable_gains=random.randint(50000, 500000),
-                    product=random.choice(["variable annuity", "whole life insurance", "non-traded REIT", "equity-indexed annuity"]),
+                    product=random.choice(
+                        [
+                            "variable annuity",
+                            "whole life insurance",
+                            "non-traded REIT",
+                            "equity-indexed annuity",
+                        ]
+                    ),
                     compensation=random.choice(["6%", "7%", "8%"]),
-                    alternative=random.choice(["term life + index fund", "low-cost index fund", "publicly traded REIT ETF"]),
+                    alternative=random.choice(
+                        [
+                            "term life + index fund",
+                            "low-cost index fund",
+                            "publicly traded REIT ETF",
+                        ]
+                    ),
                     cost_difference=random.randint(2000, 15000),
                     balance=random.randint(100000, 2000000),
                     ss_income=random.randint(1500, 3500),
                     annual_expenses=random.randint(60000, 200000),
                     pct_in_single_stock=random.choice([30, 40, 50, 60, 70]),
                     total_assets=assets,
-                    company_type=random.choice(["publicly traded tech company", "large financial institution", "employer S-corp"]),
+                    company_type=random.choice(
+                        [
+                            "publicly traded tech company",
+                            "large financial institution",
+                            "employer S-corp",
+                        ]
+                    ),
                     cost_basis=random.randint(10000, int(assets * 0.3)),
                     current_value=random.randint(int(assets * 0.2), int(assets * 0.5)),
                     portfolio=assets,
@@ -415,7 +487,9 @@ def _build_violation_prompt(scenario: str) -> str:
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
-def call_vllm(prompt: str, system: str = SYSTEM_PROMPT_FIDUCIARY, max_tokens: int = 1200) -> str:
+def call_vllm(
+    prompt: str, system: str = SYSTEM_PROMPT_FIDUCIARY, max_tokens: int = 1200
+) -> str:
     url = random.choice(VLLM_URLS)
     payload = {
         "model": VLLM_MODEL,
@@ -438,10 +512,13 @@ def call_vllm(prompt: str, system: str = SYSTEM_PROMPT_FIDUCIARY, max_tokens: in
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=8))
-def call_claude(prompt: str, system: str = SYSTEM_PROMPT_FIDUCIARY, max_tokens: int = 1200) -> str:
+def call_claude(
+    prompt: str, system: str = SYSTEM_PROMPT_FIDUCIARY, max_tokens: int = 1200
+) -> str:
     if not HAS_ANTHROPIC:
         raise RuntimeError("anthropic package not installed")
     import anthropic
+
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
     msg = client.messages.create(
         model="claude-opus-4-6",
@@ -493,7 +570,9 @@ class PortfolioSynthesizer:
                 template = random.choice(SCENARIO_TEMPLATES)
                 scenario_prompt = _build_scenario_prompt(template)
 
-                pair = self._generate_pair(scenario_prompt, template["category"], backend)
+                pair = self._generate_pair(
+                    scenario_prompt, template["category"], backend
+                )
                 if pair is None:
                     continue
 
@@ -512,7 +591,9 @@ class PortfolioSynthesizer:
                     out_fh.write(json.dumps(item) + "\n")
                 generated += len(batch)
 
-        logger.success(f"Portfolio synthesis complete: {generated} pairs → {self.output_path}")
+        logger.success(
+            f"Portfolio synthesis complete: {generated} pairs → {self.output_path}"
+        )
         return generated
 
     def _generate_pair(
@@ -561,7 +642,9 @@ class PortfolioSynthesizer:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Synthesize fiduciary reasoning training pairs")
+    parser = argparse.ArgumentParser(
+        description="Synthesize fiduciary reasoning training pairs"
+    )
     parser.add_argument(
         "--output",
         default="data/synthesized/portfolio_pairs.jsonl",

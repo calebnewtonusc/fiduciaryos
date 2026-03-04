@@ -47,9 +47,8 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from loguru import logger
 
@@ -60,10 +59,10 @@ class SuiteResult:
 
     suite_name: str
     n_examples: int
-    primary_metric: float        # Main metric (F1, accuracy, etc.)
+    primary_metric: float  # Main metric (F1, accuracy, etc.)
     secondary_metrics: dict[str, float]
-    pass_rate: float             # Fraction above per-item threshold
-    details: list[dict]          # Per-item results
+    pass_rate: float  # Fraction above per-item threshold
+    details: list[dict]  # Per-item results
 
 
 @dataclass
@@ -73,8 +72,8 @@ class BenchmarkResult:
     model_name: str
     evaluated_at: str
     suites: dict[str, SuiteResult]
-    composite_score: float       # Weighted average across suites
-    passed: bool                 # True if composite >= 0.75
+    composite_score: float  # Weighted average across suites
+    passed: bool  # True if composite >= 0.75
     summary: str
 
 
@@ -97,8 +96,8 @@ class FiduciaryBench:
     All test cases are deterministic; model temperature is set to 0 for evaluation.
     """
 
-    PASS_THRESHOLD = 0.75        # Minimum composite score to pass
-    ITEM_PASS_THRESHOLD = 0.50   # Per-item minimum for pass_rate
+    PASS_THRESHOLD = 0.75  # Minimum composite score to pass
+    ITEM_PASS_THRESHOLD = 0.50  # Per-item minimum for pass_rate
 
     def __init__(
         self,
@@ -127,6 +126,7 @@ class FiduciaryBench:
 
         if model_url:
             import openai
+
             self._client = openai.OpenAI(
                 base_url=f"{model_url}/v1",
                 api_key=os.environ.get("VLLM_API_KEY", "dummy"),
@@ -177,6 +177,7 @@ class FiduciaryBench:
             test_cases = _BUILTIN_VIOLATION_CASES
 
         from collections import defaultdict
+
         tp: dict[str, int] = defaultdict(int)
         fp: dict[str, int] = defaultdict(int)
         fn: dict[str, int] = defaultdict(int)
@@ -188,7 +189,7 @@ class FiduciaryBench:
                 f"{case['conduct']}\n\n"
                 f"Classify this conduct. Which of the following fiduciary violation types apply? "
                 f"List all that apply from: {', '.join(case['all_violation_types'])}. "
-                f"Respond with a JSON list: {{\"violations\": [\"type1\", \"type2\"]}}"
+                f'Respond with a JSON list: {{"violations": ["type1", "type2"]}}'
             )
 
             response = self._call_model(prompt)
@@ -205,13 +206,17 @@ class FiduciaryBench:
                 if vtype not in true_violations:
                     fp[vtype] += 1
 
-            item_correct = len(true_violations & pred_violations) / max(len(true_violations), 1)
-            details.append({
-                "case_id": case.get("id", ""),
-                "true": list(true_violations),
-                "predicted": list(pred_violations),
-                "item_score": round(item_correct, 3),
-            })
+            item_correct = len(true_violations & pred_violations) / max(
+                len(true_violations), 1
+            )
+            details.append(
+                {
+                    "case_id": case.get("id", ""),
+                    "true": list(true_violations),
+                    "predicted": list(pred_violations),
+                    "item_score": round(item_correct, 3),
+                }
+            )
 
         # Macro-F1
         all_types = set(tp.keys()) | set(fp.keys()) | set(fn.keys())
@@ -223,7 +228,9 @@ class FiduciaryBench:
             per_type_f1.append(f1)
 
         macro_f1 = round(sum(per_type_f1) / max(len(per_type_f1), 1), 4)
-        pass_rate = sum(1 for d in details if d["item_score"] >= 0.5) / max(len(details), 1)
+        pass_rate = sum(1 for d in details if d["item_score"] >= 0.5) / max(
+            len(details), 1
+        )
 
         logger.info(f"Violation Detection: macro-F1={macro_f1:.3f}")
         return SuiteResult(
@@ -249,7 +256,7 @@ class FiduciaryBench:
                 f"Policy Artifact constraints:\n{json.dumps(case['policy_summary'], indent=2)}\n\n"
                 f"Proposed action:\n{json.dumps(case['proposed_action'], indent=2)}\n\n"
                 f"Verdict (APPROVED/BLOCKED/MODIFIED)? Explain in JSON: "
-                f'{{\"verdict\": \"...\", \"reason\": \"...\"}}'
+                f'{{"verdict": "...", "reason": "..."}}'
             )
 
             response = self._call_model(prompt)
@@ -258,12 +265,14 @@ class FiduciaryBench:
             if is_correct:
                 correct += 1
 
-            details.append({
-                "case_id": case.get("id", ""),
-                "expected": case["expected_verdict"],
-                "predicted": predicted,
-                "correct": is_correct,
-            })
+            details.append(
+                {
+                    "case_id": case.get("id", ""),
+                    "expected": case["expected_verdict"],
+                    "predicted": predicted,
+                    "correct": is_correct,
+                }
+            )
 
         accuracy = round(correct / max(len(test_cases), 1), 4)
         pass_rate = accuracy  # Binary: correct or not
@@ -293,40 +302,49 @@ class FiduciaryBench:
                 f"Positions:\n{json.dumps(case['positions'], indent=2)}\n\n"
                 f"Should we harvest the {case['ticker']} loss? "
                 f"Is it wash-sale safe? Respond in JSON: "
-                f'{{\"harvest\": true/false, \"wash_sale_safe\": true/false, \"reason\": \"...\"}}'
+                f'{{"harvest": true/false, "wash_sale_safe": true/false, "reason": "..."}}'
             )
 
             response = self._call_model(prompt)
             predicted_harvest = self._extract_bool(response, "harvest")
             predicted_wash_safe = self._extract_bool(response, "wash_sale_safe")
 
-            h_correct = (predicted_harvest == case["expected_harvest"])
-            w_correct = (predicted_wash_safe == case["expected_wash_sale_safe"])
+            h_correct = predicted_harvest == case["expected_harvest"]
+            w_correct = predicted_wash_safe == case["expected_wash_sale_safe"]
             if h_correct:
                 harvest_correct += 1
             if w_correct:
                 wash_sale_correct += 1
 
             item_score = (int(h_correct) + int(w_correct)) / 2
-            details.append({
-                "case_id": case.get("id", ""),
-                "harvest_correct": h_correct,
-                "wash_sale_correct": w_correct,
-                "item_score": item_score,
-            })
+            details.append(
+                {
+                    "case_id": case.get("id", ""),
+                    "harvest_correct": h_correct,
+                    "wash_sale_correct": w_correct,
+                    "item_score": item_score,
+                }
+            )
 
         n = max(len(test_cases), 1)
         harvest_acc = round(harvest_correct / n, 4)
         wash_acc = round(wash_sale_correct / n, 4)
         primary = round((harvest_acc + wash_acc) / 2, 4)
-        pass_rate = sum(1 for d in details if d["item_score"] >= 0.5) / max(len(details), 1)
+        pass_rate = sum(1 for d in details if d["item_score"] >= 0.5) / max(
+            len(details), 1
+        )
 
-        logger.info(f"Tax Optimization: harvest_acc={harvest_acc:.3f}, wash_sale_acc={wash_acc:.3f}")
+        logger.info(
+            f"Tax Optimization: harvest_acc={harvest_acc:.3f}, wash_sale_acc={wash_acc:.3f}"
+        )
         return SuiteResult(
             suite_name="tax_optimization",
             n_examples=len(test_cases),
             primary_metric=primary,
-            secondary_metrics={"harvest_accuracy": harvest_acc, "wash_sale_accuracy": wash_acc},
+            secondary_metrics={
+                "harvest_accuracy": harvest_acc,
+                "wash_sale_accuracy": wash_acc,
+            },
             pass_rate=round(pass_rate, 3),
             details=details[:10],
         )
@@ -346,22 +364,24 @@ class FiduciaryBench:
                 f"Target allocation:\n{json.dumps(case['target_allocation'], indent=2)}\n"
                 f"Threshold: {case['threshold']}%\n\n"
                 f"Does this portfolio need rebalancing? Which asset class most needs attention? "
-                f"JSON: {{\"needs_rebalance\": true/false, \"primary_drift_class\": \"...\", "
-                f"\"action\": \"SELL|BUY\"}}"
+                f'JSON: {{"needs_rebalance": true/false, "primary_drift_class": "...", '
+                f'"action": "SELL|BUY"}}'
             )
 
             response = self._call_model(prompt)
             needs_rebalance = self._extract_bool(response, "needs_rebalance")
-            is_correct = (needs_rebalance == case["expected_needs_rebalance"])
+            is_correct = needs_rebalance == case["expected_needs_rebalance"]
             if is_correct:
                 direction_correct += 1
 
-            details.append({
-                "case_id": case.get("id", ""),
-                "expected": case["expected_needs_rebalance"],
-                "predicted": needs_rebalance,
-                "correct": is_correct,
-            })
+            details.append(
+                {
+                    "case_id": case.get("id", ""),
+                    "expected": case["expected_needs_rebalance"],
+                    "predicted": needs_rebalance,
+                    "correct": is_correct,
+                }
+            )
 
         accuracy = round(direction_correct / max(len(test_cases), 1), 4)
         logger.info(f"Rebalancing: accuracy={accuracy:.3f}")
@@ -396,12 +416,14 @@ class FiduciaryBench:
             item_score = 0.5 * compliance_score + 0.5 * quality_score
 
             scores.append(item_score)
-            details.append({
-                "case_id": case.get("id", ""),
-                "compliance_score": round(compliance_score, 3),
-                "quality_score": round(quality_score, 3),
-                "item_score": round(item_score, 3),
-            })
+            details.append(
+                {
+                    "case_id": case.get("id", ""),
+                    "compliance_score": round(compliance_score, 3),
+                    "quality_score": round(quality_score, 3),
+                    "item_score": round(item_score, 3),
+                }
+            )
 
         mean_score = round(sum(scores) / max(len(scores), 1), 4)
         pass_rate = sum(1 for s in scores if s >= 0.5) / max(len(scores), 1)
@@ -411,7 +433,12 @@ class FiduciaryBench:
             suite_name="fiduciary_reasoning",
             n_examples=len(test_cases),
             primary_metric=mean_score,
-            secondary_metrics={"mean_compliance": round(sum(d["compliance_score"] for d in details) / max(len(details), 1), 3)},
+            secondary_metrics={
+                "mean_compliance": round(
+                    sum(d["compliance_score"] for d in details) / max(len(details), 1),
+                    3,
+                )
+            },
             pass_rate=round(pass_rate, 3),
             details=details[:10],
         )
@@ -430,7 +457,7 @@ class FiduciaryBench:
                 f"Review this adviser-client scenario for material conflicts of interest:\n\n"
                 f"{case['scenario']}\n\n"
                 f"Is there a material conflict of interest that must be disclosed? "
-                f"JSON: {{\"conflict_present\": true/false, \"conflict_type\": \"...\", \"disclosure_required\": true/false}}"
+                f'JSON: {{"conflict_present": true/false, "conflict_type": "...", "disclosure_required": true/false}}'
             )
 
             response = self._call_model(prompt)
@@ -444,11 +471,13 @@ class FiduciaryBench:
             elif true_conflict and not predicted_conflict:
                 fn += 1
 
-            details.append({
-                "case_id": case.get("id", ""),
-                "has_conflict": true_conflict,
-                "predicted": predicted_conflict,
-            })
+            details.append(
+                {
+                    "case_id": case.get("id", ""),
+                    "has_conflict": true_conflict,
+                    "predicted": predicted_conflict,
+                }
+            )
 
         precision = tp / max(tp + fp, 1)
         recall = tp / max(tp + fn, 1)
@@ -461,7 +490,10 @@ class FiduciaryBench:
             suite_name="conflict_detection",
             n_examples=len(test_cases),
             primary_metric=f1,
-            secondary_metrics={"precision": round(precision, 3), "recall": round(recall, 3)},
+            secondary_metrics={
+                "precision": round(precision, 3),
+                "recall": round(recall, 3),
+            },
             pass_rate=pass_rate,
             details=details[:10],
         )
@@ -475,7 +507,9 @@ class FiduciaryBench:
             status = "PASS" if suite.primary_metric >= 0.75 else "FAIL"
             logger.info(f"  {name:30s} {suite.primary_metric:.3f}  [{status}]")
         logger.info("-" * 60)
-        logger.info(f"  {'COMPOSITE SCORE':30s} {result.composite_score:.3f}  [{'PASS' if result.passed else 'FAIL'}]")
+        logger.info(
+            f"  {'COMPOSITE SCORE':30s} {result.composite_score:.3f}  [{'PASS' if result.passed else 'FAIL'}]"
+        )
         logger.info("=" * 60)
 
     def _call_model(self, prompt: str) -> str:
@@ -512,7 +546,7 @@ class FiduciaryBench:
     def _extract_violation_list(self, text: str) -> list[str]:
         """Extract violation list from model JSON response."""
         try:
-            m = re.search(r'\{[\s\S]+\}', text)
+            m = re.search(r"\{[\s\S]+\}", text)
             if m:
                 data = json.loads(m.group(0))
                 return data.get("violations", [])
@@ -526,7 +560,7 @@ class FiduciaryBench:
             if verdict.lower() in text.lower():
                 return verdict
         try:
-            m = re.search(r'\{[\s\S]+\}', text)
+            m = re.search(r"\{[\s\S]+\}", text)
             if m:
                 data = json.loads(m.group(0))
                 return data.get("verdict", "UNKNOWN").upper()
@@ -537,7 +571,7 @@ class FiduciaryBench:
     def _extract_bool(self, text: str, field: str) -> bool:
         """Extract a boolean field from JSON response."""
         try:
-            m = re.search(r'\{[\s\S]+\}', text)
+            m = re.search(r"\{[\s\S]+\}", text)
             if m:
                 data = json.loads(m.group(0))
                 val = data.get(field, False)
@@ -550,7 +584,9 @@ class FiduciaryBench:
 
     def _build_summary(self, suites: dict, composite: float, passed: bool) -> str:
         """Build a text summary of benchmark results."""
-        lines = [f"FiduciaryBench — {'PASS' if passed else 'FAIL'} (composite {composite:.3f})"]
+        lines = [
+            f"FiduciaryBench — {'PASS' if passed else 'FAIL'} (composite {composite:.3f})"
+        ]
         for name, suite in suites.items():
             lines.append(f"  {name}: {suite.primary_metric:.3f}")
         return " | ".join(lines)
@@ -565,20 +601,37 @@ _BUILTIN_VIOLATION_CASES = [
         "id": "vd_001",
         "conduct": "An adviser recommended a high-fee annuity product from a provider that paid the adviser a 6% commission. The client was not informed of the commission. The annuity had higher fees than comparable low-cost products.",
         "violations": ["undisclosed_conflict", "excessive_fees"],
-        "all_violation_types": ["undisclosed_conflict", "self_dealing", "excessive_fees", "churning", "misrepresentation", "unsuitable_advice"],
+        "all_violation_types": [
+            "undisclosed_conflict",
+            "self_dealing",
+            "excessive_fees",
+            "churning",
+            "misrepresentation",
+            "unsuitable_advice",
+        ],
     },
     {
         "id": "vd_002",
         "conduct": "An adviser recommended a diversified low-cost index fund portfolio appropriate to the client's stated moderate risk tolerance and 20-year time horizon.",
         "violations": [],
-        "all_violation_types": ["undisclosed_conflict", "self_dealing", "excessive_fees", "churning", "misrepresentation", "unsuitable_advice"],
+        "all_violation_types": [
+            "undisclosed_conflict",
+            "self_dealing",
+            "excessive_fees",
+            "churning",
+            "misrepresentation",
+            "unsuitable_advice",
+        ],
     },
 ]
 
 _BUILTIN_POLICY_CASES = [
     {
         "id": "pc_001",
-        "policy_summary": {"max_single_security_pct": 0.10, "excluded_securities": ["TSLA"]},
+        "policy_summary": {
+            "max_single_security_pct": 0.10,
+            "excluded_securities": ["TSLA"],
+        },
         "proposed_action": {"type": "BUY", "ticker": "TSLA", "amount_usd": 5000},
         "expected_verdict": "BLOCKED",
     },
@@ -594,7 +647,14 @@ _BUILTIN_TAX_CASES = [
     {
         "id": "to_001",
         "scenario_description": "Client in 37% bracket, CA resident. Year-end tax loss harvesting review.",
-        "positions": {"VTI": {"shares": 500, "cost_basis": 280, "current_price": 241, "holding_days": 400}},
+        "positions": {
+            "VTI": {
+                "shares": 500,
+                "cost_basis": 280,
+                "current_price": 241,
+                "holding_days": 400,
+            }
+        },
         "ticker": "VTI",
         "expected_harvest": True,
         "expected_wash_sale_safe": True,

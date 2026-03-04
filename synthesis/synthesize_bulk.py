@@ -33,18 +33,15 @@ import hashlib
 import json
 import os
 import random
-import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
 from loguru import logger
 
 from synthesis.prompts import (
-    FIDUCIARY_ANALYSIS_PROMPT,
     PORTFOLIO_ANALYSIS_PROMPT,
     REBALANCING_PROMPT,
     RISK_ASSESSMENT_PROMPT,
@@ -62,9 +59,11 @@ class TrainingPair:
     """A single training pair in ShareGPT format."""
 
     pair_id: str
-    stream: str                 # "portfolio" | "violation" | "tax" | "rebalance" | "risk"
-    conversations: list[dict]   # ShareGPT format: [{"from": "human", "value": "..."}, ...]
-    metadata: dict              # Quality flags, scenario type, etc.
+    stream: str  # "portfolio" | "violation" | "tax" | "rebalance" | "risk"
+    conversations: list[
+        dict
+    ]  # ShareGPT format: [{"from": "human", "value": "..."}, ...]
+    metadata: dict  # Quality flags, scenario type, etc.
 
 
 class FiduciaryBulkSynthesizer:
@@ -78,7 +77,7 @@ class FiduciaryBulkSynthesizer:
     def __init__(
         self,
         output_dir: str = "data/processed",
-        backend: str = "vllm",           # "vllm" | "claude"
+        backend: str = "vllm",  # "vllm" | "claude"
         vllm_urls: list[str] | None = None,
         model_name: str = "Qwen/Qwen2.5-72B-Instruct",
         temperature: float = 0.8,
@@ -93,7 +92,8 @@ class FiduciaryBulkSynthesizer:
 
         # vLLM round-robin pool
         self._vllm_urls = vllm_urls or [
-            url.strip() for url in os.environ.get("VLLM_URLS", "http://localhost:8000").split(",")
+            url.strip()
+            for url in os.environ.get("VLLM_URLS", "http://localhost:8000").split(",")
         ]
         self._vllm_idx = 0
         self._vllm_lock = threading.Lock()
@@ -108,12 +108,15 @@ class FiduciaryBulkSynthesizer:
         if self.backend == "vllm":
             try:
                 import openai
+
                 # Initialize with first URL; round-robin handled at call time
                 self._vllm_client = openai.OpenAI(
                     base_url=f"{self._vllm_urls[0]}/v1",
                     api_key=os.environ.get("VLLM_API_KEY", "dummy"),
                 )
-                logger.info(f"vLLM client initialized: {len(self._vllm_urls)} instance(s)")
+                logger.info(
+                    f"vLLM client initialized: {len(self._vllm_urls)} instance(s)"
+                )
             except ImportError:
                 logger.warning("openai package not found — falling back to Claude API")
                 self.backend = "claude"
@@ -121,6 +124,7 @@ class FiduciaryBulkSynthesizer:
         if self.backend == "claude" or self._vllm_client is None:
             try:
                 import anthropic
+
                 self._claude_client = anthropic.Anthropic(
                     api_key=os.environ.get("ANTHROPIC_API_KEY", "")
                 )
@@ -164,7 +168,9 @@ class FiduciaryBulkSynthesizer:
             logger.info(f"Stream {stream_name} complete: {saved:,} pairs saved")
 
         total = sum(results.values())
-        logger.info(f"Synthesis complete: {total:,} total pairs across {len(streams)} streams")
+        logger.info(
+            f"Synthesis complete: {total:,} total pairs across {len(streams)} streams"
+        )
         return results
 
     def _synthesize_stream(
@@ -185,7 +191,9 @@ class FiduciaryBulkSynthesizer:
 
         remaining = count - existing_count
         if remaining <= 0:
-            logger.info(f"Stream {stream_name} already complete ({existing_count:,} pairs)")
+            logger.info(
+                f"Stream {stream_name} already complete ({existing_count:,} pairs)"
+            )
             return existing_count
 
         logger.info(f"Stream {stream_name}: generating {remaining:,} more pairs")
@@ -196,7 +204,9 @@ class FiduciaryBulkSynthesizer:
             open(seen_file, "a") as seen_f,
             ThreadPoolExecutor(max_workers=self.max_workers) as executor,
         ):
-            futures = [executor.submit(make_fn) for _ in range(remaining * 2)]  # over-generate for quality filter
+            futures = [
+                executor.submit(make_fn) for _ in range(remaining * 2)
+            ]  # over-generate for quality filter
             completed = 0
 
             for future in as_completed(futures):
@@ -234,6 +244,7 @@ class FiduciaryBulkSynthesizer:
     def _call_vllm(self, system: str, user: str) -> str | None:
         """Call vLLM with round-robin load balancing."""
         import openai
+
         with self._vllm_lock:
             url = self._vllm_urls[self._vllm_idx % len(self._vllm_urls)]
             self._vllm_idx += 1
@@ -288,11 +299,14 @@ class FiduciaryBulkSynthesizer:
 
         user_prompt = PORTFOLIO_ANALYSIS_PROMPT.format(
             client_profile=json.dumps(profile, indent=2),
-            portfolio_state=json.dumps({
-                "total_value_usd": round(portfolio_value, 0),
-                "drawdown_from_peak": f"{drawdown:.1%}",
-                "holdings": {k: round(v, 0) for k, v in holdings.items()},
-            }, indent=2),
+            portfolio_state=json.dumps(
+                {
+                    "total_value_usd": round(portfolio_value, 0),
+                    "drawdown_from_peak": f"{drawdown:.1%}",
+                    "holdings": {k: round(v, 0) for k, v in holdings.items()},
+                },
+                indent=2,
+            ),
             market_context=f"Current date: 2026. Rates at {random.uniform(3.5, 5.5):.1f}%, equity markets {random.choice(['near all-time highs', 'correcting 8%', 'in bear market -22%'])}.",
         )
 
@@ -304,7 +318,9 @@ class FiduciaryBulkSynthesizer:
         try:
             parsed = json.loads(self._extract_json(raw))
             human_value = parsed.get("prompt", user_prompt[:200])
-            assistant_value = json.dumps(parsed.get("response", {"analysis": raw}), indent=2)
+            assistant_value = json.dumps(
+                parsed.get("response", {"analysis": raw}), indent=2
+            )
         except (json.JSONDecodeError, KeyError):
             human_value = f"Analyze portfolio for: {profile['description']}"
             assistant_value = raw
@@ -321,7 +337,9 @@ class FiduciaryBulkSynthesizer:
 
     def _make_violation_pair(self) -> TrainingPair | None:
         """Generate one fiduciary violation detection training pair."""
-        scenario_type = random.choice(SCENARIO_TYPES[:10])  # Violation-relevant scenarios
+        scenario_type = random.choice(
+            SCENARIO_TYPES[:10]
+        )  # Violation-relevant scenarios
 
         # Use built-in violation scenario templates
         violation_templates = VIOLATION_SCENARIO_TEMPLATES
@@ -341,10 +359,17 @@ class FiduciaryBulkSynthesizer:
             pair_id=pair_id,
             stream="violation",
             conversations=[
-                {"from": "human", "value": template["conduct"][:800] + "\n\nAnalyze for fiduciary violations."},
+                {
+                    "from": "human",
+                    "value": template["conduct"][:800]
+                    + "\n\nAnalyze for fiduciary violations.",
+                },
                 {"from": "gpt", "value": raw},
             ],
-            metadata={"violations": template["violations"], "scenario_type": scenario_type},
+            metadata={
+                "violations": template["violations"],
+                "scenario_type": scenario_type,
+            },
         )
 
     def _make_tax_pair(self) -> TrainingPair | None:
@@ -371,7 +396,9 @@ class FiduciaryBulkSynthesizer:
             federal_rate=federal_rate,
             state=state,
             state_rate=state_rate,
-            tax_status=random.choice(["taxable", "mixed_taxable_ira", "taxable_with_roth"]),
+            tax_status=random.choice(
+                ["taxable", "mixed_taxable_ira", "taxable_with_roth"]
+            ),
             realized_gains=random.randint(0, 50_000),
             positions_with_pnl=json.dumps(positions, indent=2),
             scenario_date="November 15, 2026",
@@ -386,10 +413,17 @@ class FiduciaryBulkSynthesizer:
             pair_id=pair_id,
             stream="tax",
             conversations=[
-                {"from": "human", "value": f"Perform tax-loss harvesting analysis for {state} resident (federal {federal_rate}% bracket).\n\nPositions:\n{json.dumps(positions, indent=2)}"},
+                {
+                    "from": "human",
+                    "value": f"Perform tax-loss harvesting analysis for {state} resident (federal {federal_rate}% bracket).\n\nPositions:\n{json.dumps(positions, indent=2)}",
+                },
                 {"from": "gpt", "value": raw},
             ],
-            metadata={"federal_rate": federal_rate, "state": state, "scenario": "tax_optimization"},
+            metadata={
+                "federal_rate": federal_rate,
+                "state": state,
+                "scenario": "tax_optimization",
+            },
         )
 
     def _make_rebalance_pair(self) -> TrainingPair | None:
@@ -408,11 +442,13 @@ class FiduciaryBulkSynthesizer:
             threshold=random.choice([3, 5, 7]),
             tax_status=random.choice(["taxable", "mixed"]),
             harvest_threshold=random.choice([-500, -1000, -2000]),
-            current_holdings=json.dumps({
-                "VTI": random.randint(50_000, 500_000),
-                "VXUS": random.randint(10_000, 100_000),
-                "BND": random.randint(10_000, 150_000),
-            }),
+            current_holdings=json.dumps(
+                {
+                    "VTI": random.randint(50_000, 500_000),
+                    "VXUS": random.randint(10_000, 100_000),
+                    "BND": random.randint(10_000, 150_000),
+                }
+            ),
             prices=json.dumps({"VTI": 265.40, "VXUS": 58.20, "BND": 74.30}),
             tax_lots="[...lots omitted for brevity...]",
         )
@@ -426,7 +462,10 @@ class FiduciaryBulkSynthesizer:
             pair_id=pair_id,
             stream="rebalance",
             conversations=[
-                {"from": "human", "value": f"Generate rebalancing plan. Target: {json.dumps(target_alloc)}"},
+                {
+                    "from": "human",
+                    "value": f"Generate rebalancing plan. Target: {json.dumps(target_alloc)}",
+                },
                 {"from": "gpt", "value": raw},
             ],
             metadata={"target_allocation": target_alloc, "scenario": "rebalancing"},
@@ -458,10 +497,17 @@ class FiduciaryBulkSynthesizer:
             pair_id=pair_id,
             stream="risk",
             conversations=[
-                {"from": "human", "value": f"Assess portfolio risk. Drawdown: {drawdown:.1%}, Vol: {realized_vol:.1%}"},
+                {
+                    "from": "human",
+                    "value": f"Assess portfolio risk. Drawdown: {drawdown:.1%}, Vol: {realized_vol:.1%}",
+                },
                 {"from": "gpt", "value": raw},
             ],
-            metadata={"drawdown": drawdown, "realized_vol": realized_vol, "scenario": "risk_assessment"},
+            metadata={
+                "drawdown": drawdown,
+                "realized_vol": realized_vol,
+                "scenario": "risk_assessment",
+            },
         )
 
     def _quality_check(self, pair: TrainingPair) -> bool:
@@ -472,8 +518,18 @@ class FiduciaryBulkSynthesizer:
         if len(assistant_msg) < 200:
             return False
         # Reject if response doesn't contain financial terminology
-        financial_terms = ["portfolio", "tax", "risk", "allocation", "return", "volatility", "fiduciary"]
-        has_term = any(term.lower() in assistant_msg.lower() for term in financial_terms)
+        financial_terms = [
+            "portfolio",
+            "tax",
+            "risk",
+            "allocation",
+            "return",
+            "volatility",
+            "fiduciary",
+        ]
+        has_term = any(
+            term.lower() in assistant_msg.lower() for term in financial_terms
+        )
         return has_term
 
     def _extract_json(self, text: str) -> str:
@@ -485,19 +541,26 @@ class FiduciaryBulkSynthesizer:
         start = text.find("{")
         end = text.rfind("}")
         if start >= 0 and end > start:
-            return text[start:end + 1]
+            return text[start : end + 1]
         return text
 
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="FiduciaryOS bulk synthesis")
     parser.add_argument("--backend", choices=["vllm", "claude"], default="vllm")
     parser.add_argument("--output-dir", default="data/processed")
     parser.add_argument("--max-workers", type=int, default=25)
-    parser.add_argument("--vllm-urls", default="http://localhost:8001,http://localhost:8002")
+    parser.add_argument(
+        "--vllm-urls", default="http://localhost:8001,http://localhost:8002"
+    )
     args = parser.parse_args()
-    vllm_urls = [u.strip() for u in args.vllm_urls.split(",")] if args.backend == "vllm" else None
+    vllm_urls = (
+        [u.strip() for u in args.vllm_urls.split(",")]
+        if args.backend == "vllm"
+        else None
+    )
     synthesizer = FiduciaryBulkSynthesizer(
         output_dir=args.output_dir,
         backend=args.backend,

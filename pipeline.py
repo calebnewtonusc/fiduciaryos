@@ -46,18 +46,21 @@ for d in [RAW_DIR, PROCESSED_DIR, TRAIN_DIR, CHECKPOINTS_DIR]:
 # Stage runners
 # ---------------------------------------------------------------------------
 
+
 def stage_discovery(args: argparse.Namespace) -> None:
     """Crawl SEC/FINRA enforcement actions and CFA corpus."""
     logger.info("=== STAGE: DISCOVERY ===")
 
     logger.info("Crawling SEC EDGAR enforcement actions...")
     from discovery.sec_filings import SECFilingCrawler
+
     crawler = SECFilingCrawler(output_dir=RAW_DIR / "sec")
     n_sec = crawler.run(max_actions=30_000)
     logger.info(f"Collected {n_sec:,} SEC enforcement releases")
 
     logger.info("Crawling FINRA enforcement actions...")
     from discovery.enforcement_actions import EnforcementActionCrawler
+
     finra = EnforcementActionCrawler(output_dir=RAW_DIR / "finra")
     n_finra = finra.run(max_actions=30_000)
     logger.info(f"Collected {n_finra:,} FINRA enforcement actions")
@@ -74,13 +77,17 @@ def stage_synthesis(args: argparse.Namespace) -> None:
     vllm_urls = None
     if backend == "vllm":
         import os
-        urls_str = os.environ.get("VLLM_URLS", "http://localhost:8001,http://localhost:8002")
+
+        urls_str = os.environ.get(
+            "VLLM_URLS", "http://localhost:8001,http://localhost:8002"
+        )
         vllm_urls = [u.strip() for u in urls_str.split(",")]
         logger.info(f"Using vLLM backend: {vllm_urls}")
     else:
         logger.info("Using Claude API backend")
 
     from synthesis.synthesize_bulk import FiduciaryBulkSynthesizer
+
     synthesizer = FiduciaryBulkSynthesizer(
         output_dir=PROCESSED_DIR,
         backend=backend,
@@ -106,6 +113,7 @@ def _merge_and_split() -> None:
 
     try:
         from datasketch import MinHash, MinHashLSH
+
         HAS_DATASKETCH = True
     except ImportError:
         HAS_DATASKETCH = False
@@ -147,8 +155,8 @@ def _merge_and_split() -> None:
 
     splits = {
         "train": deduped[:n_train],
-        "val": deduped[n_train:n_train + n_val],
-        "test": deduped[n_train + n_val:],
+        "val": deduped[n_train : n_train + n_val],
+        "test": deduped[n_train + n_val :],
     }
 
     for split_name, pairs in splits.items():
@@ -167,40 +175,74 @@ def stage_train(args: argparse.Namespace) -> None:
 
     if not (sft_ckpt / "config.json").exists():
         logger.info("--- Stage 1: SFT ---")
-        _run_deepspeed("training/train.py", [
-            "--model_name_or_path", "Qwen/Qwen2.5-7B-Coder-Instruct",
-            "--data_path", str(TRAIN_DIR),
-            "--output_dir", str(sft_ckpt),
-            "--epochs", "3", "--batch_size", "4", "--grad_accum", "4",
-            "--learning_rate", "2e-4", "--max_seq_length", "8192",
-            "--deepspeed", "training/configs/deepspeed_zero3.json",
-        ])
+        _run_deepspeed(
+            "training/train.py",
+            [
+                "--model_name_or_path",
+                "Qwen/Qwen2.5-7B-Coder-Instruct",
+                "--data_path",
+                str(TRAIN_DIR),
+                "--output_dir",
+                str(sft_ckpt),
+                "--epochs",
+                "3",
+                "--batch_size",
+                "4",
+                "--grad_accum",
+                "4",
+                "--learning_rate",
+                "2e-4",
+                "--max_seq_length",
+                "8192",
+                "--deepspeed",
+                "training/configs/deepspeed_zero3.json",
+            ],
+        )
 
     if not (rl_ckpt / "config.json").exists():
         logger.info("--- Stage 2: GRPO ---")
-        _run_deepspeed("training/train_rl.py", [
-            "--model_path", str(sft_ckpt),
-            "--data_path", str(TRAIN_DIR / "grpo_prompts.jsonl"),
-            "--output_dir", str(rl_ckpt),
-            "--deepspeed", "training/configs/deepspeed_zero3.json",
-        ])
+        _run_deepspeed(
+            "training/train_rl.py",
+            [
+                "--model_path",
+                str(sft_ckpt),
+                "--data_path",
+                str(TRAIN_DIR / "grpo_prompts.jsonl"),
+                "--output_dir",
+                str(rl_ckpt),
+                "--deepspeed",
+                "training/configs/deepspeed_zero3.json",
+            ],
+        )
 
     if not (final_ckpt / "config.json").exists():
         logger.info("--- Stage 3: DPO ---")
-        _run_deepspeed("training/train_dpo.py", [
-            "--model_path", str(rl_ckpt),
-            "--data_path", str(TRAIN_DIR / "dpo_pairs.jsonl"),
-            "--output_dir", str(final_ckpt),
-            "--deepspeed", "training/configs/deepspeed_zero3.json",
-        ])
+        _run_deepspeed(
+            "training/train_dpo.py",
+            [
+                "--model_path",
+                str(rl_ckpt),
+                "--data_path",
+                str(TRAIN_DIR / "dpo_pairs.jsonl"),
+                "--output_dir",
+                str(final_ckpt),
+                "--deepspeed",
+                "training/configs/deepspeed_zero3.json",
+            ],
+        )
 
     logger.info(f"Training complete. Final model: {final_ckpt}")
 
 
 def _run_deepspeed(script: str, extra_args: list[str]) -> None:
     import os
+
     visible = os.environ.get("CUDA_VISIBLE_DEVICES", "")
-    n_gpus = len([x for x in visible.split(",") if x.strip()]) if visible and visible.strip() else 10
+    n_gpus = (
+        len([x for x in visible.split(",") if x.strip()])
+        if visible and visible.strip()
+        else 10
+    )
     cmd = ["deepspeed", f"--num_gpus={n_gpus}", script] + extra_args
     logger.info(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, check=False)
@@ -218,11 +260,14 @@ def stage_eval(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     from evaluation.fiduciarybench import FiduciaryBench
+
     bench = FiduciaryBench(model_path=str(final_ckpt))
     results = bench.run_all()
 
     logger.info("=== FiduciaryBench Results ===")
-    results_dict = dataclasses.asdict(results) if dataclasses.is_dataclass(results) else results
+    results_dict = (
+        dataclasses.asdict(results) if dataclasses.is_dataclass(results) else results
+    )
     for metric, value in results_dict.items():
         if isinstance(value, (int, float)):
             logger.info(f"  {metric:<45} {value:.4f}")

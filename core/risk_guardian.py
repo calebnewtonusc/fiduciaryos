@@ -28,7 +28,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum
 from pathlib import Path
-from typing import Any
 
 from loguru import logger
 
@@ -47,11 +46,11 @@ class PortfolioState:
 
     client_id: str
     total_value_usd: float
-    holdings: dict[str, float]          # ticker → current value USD
-    allocation: dict[str, float]        # asset_class → fraction
+    holdings: dict[str, float]  # ticker → current value USD
+    allocation: dict[str, float]  # asset_class → fraction
     unrealized_pnl_usd: float
-    drawdown_from_peak: float           # current drawdown as fraction
-    daily_volatility: float             # realized 20-day rolling volatility
+    drawdown_from_peak: float  # current drawdown as fraction
+    daily_volatility: float  # realized 20-day rolling volatility
     cash_usd: float
     alpha_sleeve_value_usd: float = 0.0
     margin_utilization: float = 0.0
@@ -117,40 +116,56 @@ class RiskGuardian:
             )
 
         if self._state.get("safe_mode_active", False):
-            alerts.append("SAFE_MODE: " + self._state.get("safe_mode_reason", "Automatic trigger"))
+            alerts.append(
+                "SAFE_MODE: " + self._state.get("safe_mode_reason", "Automatic trigger")
+            )
             level = AlertLevel.SAFE_MODE
 
         # Level 1 checks — MONITORING
         if portfolio.drawdown_from_peak > 0.03:
-            alerts.append(f"Drawdown {portfolio.drawdown_from_peak:.1%} > 3% monitoring threshold")
+            alerts.append(
+                f"Drawdown {portfolio.drawdown_from_peak:.1%} > 3% monitoring threshold"
+            )
             level = max(level, AlertLevel.MONITORING)
 
-        max_concentration = max(portfolio.holdings.values(), default=0) / max(portfolio.total_value_usd, 1)
+        max_concentration = max(portfolio.holdings.values(), default=0) / max(
+            portfolio.total_value_usd, 1
+        )
         if max_concentration > 0.15:
-            alerts.append(f"Single security concentration {max_concentration:.1%} > 15%")
+            alerts.append(
+                f"Single security concentration {max_concentration:.1%} > 15%"
+            )
             level = max(level, AlertLevel.MONITORING)
 
         # Level 2 checks — ALERT
         max_drawdown_tolerance = (
             self.policy.risk_profile.get("max_drawdown_tolerance", 0.18)
-            if self.policy else 0.18
+            if self.policy
+            else 0.18
         )
 
         if portfolio.drawdown_from_peak > 0.10:
-            alerts.append(f"Drawdown {portfolio.drawdown_from_peak:.1%} > 10% alert threshold")
+            alerts.append(
+                f"Drawdown {portfolio.drawdown_from_peak:.1%} > 10% alert threshold"
+            )
             level = max(level, AlertLevel.ALERT)
 
         if max_concentration > 0.20:
-            alerts.append(f"Concentration {max_concentration:.1%} > 20% alert threshold")
+            alerts.append(
+                f"Concentration {max_concentration:.1%} > 20% alert threshold"
+            )
             level = max(level, AlertLevel.ALERT)
 
         volatility_target = (
             self.policy.risk_profile.get("volatility_target", 0.10)
-            if self.policy else 0.10
+            if self.policy
+            else 0.10
         )
-        if portfolio.daily_volatility * (252 ** 0.5) > volatility_target * 1.5:
-            annualized_vol = portfolio.daily_volatility * (252 ** 0.5)
-            alerts.append(f"Realized volatility {annualized_vol:.1%} > 1.5× target {volatility_target:.1%}")
+        if portfolio.daily_volatility * (252**0.5) > volatility_target * 1.5:
+            annualized_vol = portfolio.daily_volatility * (252**0.5)
+            alerts.append(
+                f"Realized volatility {annualized_vol:.1%} > 1.5× target {volatility_target:.1%}"
+            )
             level = max(level, AlertLevel.ALERT)
 
         # Level 3 checks — SAFE MODE
@@ -159,7 +174,9 @@ class RiskGuardian:
                 f"Drawdown {portfolio.drawdown_from_peak:.1%} exceeds policy maximum {max_drawdown_tolerance:.1%}"
             )
             level = max(level, AlertLevel.SAFE_MODE)
-            if level == AlertLevel.SAFE_MODE and not self._state.get("safe_mode_active"):
+            if level == AlertLevel.SAFE_MODE and not self._state.get(
+                "safe_mode_active"
+            ):
                 self.activate_safe_mode(
                     client_id=portfolio.client_id,
                     reason=f"Automatic: drawdown {portfolio.drawdown_from_peak:.1%} > policy max {max_drawdown_tolerance:.1%}",
@@ -168,15 +185,23 @@ class RiskGuardian:
         # Alpha Sleeve check
         if self.policy:
             alpha_max = self.policy.alpha_sleeve.get("max_allocation_pct", 0.05)
-            alpha_pct = portfolio.alpha_sleeve_value_usd / max(portfolio.total_value_usd, 1)
+            alpha_pct = portfolio.alpha_sleeve_value_usd / max(
+                portfolio.total_value_usd, 1
+            )
             if alpha_pct > alpha_max * 1.2:  # 20% buffer before alert
-                alerts.append(f"Alpha Sleeve allocation {alpha_pct:.1%} > policy max {alpha_max:.1%}")
+                alerts.append(
+                    f"Alpha Sleeve allocation {alpha_pct:.1%} > policy max {alpha_max:.1%}"
+                )
                 level = max(level, AlertLevel.ALERT)
 
         liquidity_reserve_months = (
-            self.policy.constraints.get("liquidity_reserve_months", 6) if self.policy else 6
+            self.policy.constraints.get("liquidity_reserve_months", 6)
+            if self.policy
+            else 6
         )
-        monthly_expense_estimate = portfolio.total_value_usd * 0.004  # rough: 4.8% of portfolio per year
+        monthly_expense_estimate = (
+            portfolio.total_value_usd * 0.004
+        )  # rough: 4.8% of portfolio per year
         if portfolio.cash_usd < monthly_expense_estimate * liquidity_reserve_months:
             alerts.append(
                 f"Cash {portfolio.cash_usd:,.0f} below {liquidity_reserve_months}-month liquidity reserve"

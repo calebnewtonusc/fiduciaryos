@@ -37,8 +37,16 @@ S2_BASE = "https://api.semanticscholar.org/graph/v1"
 SSRN_BASE = "https://api.ssrn.com/content/v1"
 
 FIELDS = [
-    "paperId", "title", "abstract", "year", "citationCount",
-    "authors", "venue", "externalIds", "tldr", "fieldsOfStudy",
+    "paperId",
+    "title",
+    "abstract",
+    "year",
+    "citationCount",
+    "authors",
+    "venue",
+    "externalIds",
+    "tldr",
+    "fieldsOfStudy",
 ]
 
 # Semantic Scholar queries targeting fiduciary / wealth management literature
@@ -184,12 +192,17 @@ def _ssrn_search(query: str, limit: int = 100) -> list[dict]:
         resp.raise_for_status()
 
         from bs4 import BeautifulSoup
+
         soup = BeautifulSoup(resp.text, "html.parser")
 
         papers = []
-        for result in soup.find_all("div", class_=["result-item", "abstract-list-item"])[:limit]:
+        for result in soup.find_all(
+            "div", class_=["result-item", "abstract-list-item"]
+        )[:limit]:
             title_el = result.find("a", class_="title")
-            abstract_el = result.find("div", class_=["abstract-paragraph", "abstract-text"])
+            abstract_el = result.find(
+                "div", class_=["abstract-paragraph", "abstract-text"]
+            )
             date_el = result.find("span", class_=["date", "posted-date"])
 
             title = title_el.get_text(strip=True) if title_el else ""
@@ -198,13 +211,15 @@ def _ssrn_search(query: str, limit: int = 100) -> list[dict]:
             url_path = title_el.get("href", "") if title_el else ""
 
             if title:
-                papers.append({
-                    "source": "ssrn",
-                    "title": title,
-                    "abstract": abstract,
-                    "date": date,
-                    "url": f"https://papers.ssrn.com{url_path}" if url_path else "",
-                })
+                papers.append(
+                    {
+                        "source": "ssrn",
+                        "title": title,
+                        "abstract": abstract,
+                        "date": date,
+                        "url": f"https://papers.ssrn.com{url_path}" if url_path else "",
+                    }
+                )
         return papers
     except Exception as exc:
         logger.debug(f"SSRN search failed: {exc}")
@@ -241,13 +256,26 @@ def _score_paper(paper: dict) -> float:
     text = ((paper.get("title") or "") + " " + (paper.get("abstract") or "")).lower()
 
     high_value = [
-        "fiduciary", "investment adviser", "best interest", "suitability",
-        "portfolio optimization", "tax-loss harvesting", "rebalancing",
-        "conflict of interest", "duty of care", "prudent investor",
+        "fiduciary",
+        "investment adviser",
+        "best interest",
+        "suitability",
+        "portfolio optimization",
+        "tax-loss harvesting",
+        "rebalancing",
+        "conflict of interest",
+        "duty of care",
+        "prudent investor",
     ]
     medium_value = [
-        "portfolio", "wealth", "retirement", "risk management", "asset allocation",
-        "performance measurement", "diversification", "financial planning",
+        "portfolio",
+        "wealth",
+        "retirement",
+        "risk management",
+        "asset allocation",
+        "performance measurement",
+        "diversification",
+        "financial planning",
     ]
 
     for term in high_value:
@@ -355,18 +383,23 @@ class FinancialPaperCrawler:
                     if not pid or pid in self._seen_ids:
                         continue
                     self._seen_ids.add(pid)
-                    papers.append({
-                        "paperId": pid,
-                        "title": paper.get("title", ""),
-                        "abstract": paper.get("abstract", ""),
-                        "year": paper.get("year"),
-                        "citationCount": paper.get("citationCount", 0),
-                        "authors": [a.get("name", "") for a in (paper.get("authors") or [])[:5]],
-                        "venue": paper.get("venue", ""),
-                        "tldr": (paper.get("tldr") or {}).get("text", ""),
-                        "category": category,
-                        "source": "semantic_scholar",
-                    })
+                    papers.append(
+                        {
+                            "paperId": pid,
+                            "title": paper.get("title", ""),
+                            "abstract": paper.get("abstract", ""),
+                            "year": paper.get("year"),
+                            "citationCount": paper.get("citationCount", 0),
+                            "authors": [
+                                a.get("name", "")
+                                for a in (paper.get("authors") or [])[:5]
+                            ],
+                            "venue": paper.get("venue", ""),
+                            "tldr": (paper.get("tldr") or {}).get("text", ""),
+                            "category": category,
+                            "source": "semantic_scholar",
+                        }
+                    )
                 offset += len(batch)
                 if offset >= result.get("total", 0):
                     break
@@ -387,7 +420,9 @@ class FinancialPaperCrawler:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Crawl financial papers for FiduciaryOS")
+    parser = argparse.ArgumentParser(
+        description="Crawl financial papers for FiduciaryOS"
+    )
     parser.add_argument("--output", default="data/raw/financial_papers")
     parser.add_argument("--max-papers", type=int, default=8000)
     args = parser.parse_args()

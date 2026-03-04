@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -42,25 +42,108 @@ FRED_BASE = "https://api.stlouisfed.org/fred"
 # Core equity universe for portfolio construction scenarios
 EQUITY_TICKERS: list[str] = [
     # US Large Cap
-    "AAPL", "MSFT", "AMZN", "NVDA", "GOOGL", "META", "BRK-B", "LLY", "V", "JPM",
-    "JNJ", "XOM", "UNH", "MA", "AVGO", "PG", "HD", "CVX", "MRK", "COST",
+    "AAPL",
+    "MSFT",
+    "AMZN",
+    "NVDA",
+    "GOOGL",
+    "META",
+    "BRK-B",
+    "LLY",
+    "V",
+    "JPM",
+    "JNJ",
+    "XOM",
+    "UNH",
+    "MA",
+    "AVGO",
+    "PG",
+    "HD",
+    "CVX",
+    "MRK",
+    "COST",
     # US Mid Cap
-    "DG", "MPWR", "TREX", "RCL", "VRT", "TYL", "ENTG", "BRKR", "TTC", "RGEN",
+    "DG",
+    "MPWR",
+    "TREX",
+    "RCL",
+    "VRT",
+    "TYL",
+    "ENTG",
+    "BRKR",
+    "TTC",
+    "RGEN",
     # International Developed
-    "ASML", "NVO", "MC", "SAP", "NESN", "ROG", "NOVN", "AZN", "LVMH", "SIEGY",
+    "ASML",
+    "NVO",
+    "MC",
+    "SAP",
+    "NESN",
+    "ROG",
+    "NOVN",
+    "AZN",
+    "LVMH",
+    "SIEGY",
     # Emerging Markets
-    "TSM", "BABA", "JD", "NIO", "RELIANCE.NS", "INFY",
+    "TSM",
+    "BABA",
+    "JD",
+    "NIO",
+    "RELIANCE.NS",
+    "INFY",
     # Bonds / Fixed Income ETFs
-    "AGG", "BND", "TLT", "IEF", "SHY", "HYG", "LQD", "EMB", "MUB", "VTIP",
+    "AGG",
+    "BND",
+    "TLT",
+    "IEF",
+    "SHY",
+    "HYG",
+    "LQD",
+    "EMB",
+    "MUB",
+    "VTIP",
     # Equity ETFs
-    "SPY", "QQQ", "IWM", "VTI", "VEA", "VWO", "EFA", "EEM", "GLD", "SLV",
-    "VNQ", "XLE", "XLF", "XLK", "XLV", "XLP", "XLU", "XLI", "XLB", "XLC",
+    "SPY",
+    "QQQ",
+    "IWM",
+    "VTI",
+    "VEA",
+    "VWO",
+    "EFA",
+    "EEM",
+    "GLD",
+    "SLV",
+    "VNQ",
+    "XLE",
+    "XLF",
+    "XLK",
+    "XLV",
+    "XLP",
+    "XLU",
+    "XLI",
+    "XLB",
+    "XLC",
     # Sector / Factor
-    "VIG", "DGRO", "USMV", "QUAL", "VYM", "MTUM", "VBR", "VBK", "VXUS",
+    "VIG",
+    "DGRO",
+    "USMV",
+    "QUAL",
+    "VYM",
+    "MTUM",
+    "VBR",
+    "VBK",
+    "VXUS",
     # Dividend Focus
-    "SCHD", "DVY", "SDY", "HDV",
+    "SCHD",
+    "DVY",
+    "SDY",
+    "HDV",
     # Fixed Income
-    "BNDX", "FLOT", "STIP", "LTPZ", "SCHP",
+    "BNDX",
+    "FLOT",
+    "STIP",
+    "LTPZ",
+    "SCHP",
 ]
 
 # FRED macroeconomic series for scenario generation
@@ -75,7 +158,11 @@ FRED_SERIES: list[dict[str, str]] = [
     {"id": "GDPC1", "name": "Real GDP (Seasonally Adjusted)", "category": "gdp"},
     {"id": "UNRATE", "name": "Unemployment Rate", "category": "labor"},
     {"id": "PAYEMS", "name": "Nonfarm Payrolls", "category": "labor"},
-    {"id": "UMCSENT", "name": "U of Michigan Consumer Sentiment", "category": "sentiment"},
+    {
+        "id": "UMCSENT",
+        "name": "U of Michigan Consumer Sentiment",
+        "category": "sentiment",
+    },
     {"id": "VIXCLS", "name": "CBOE Volatility Index (VIX)", "category": "volatility"},
     {"id": "DTWEXBGS", "name": "USD Broad Index", "category": "fx"},
     {"id": "NASDAQCOM", "name": "NASDAQ Composite", "category": "equity"},
@@ -83,7 +170,11 @@ FRED_SERIES: list[dict[str, str]] = [
     {"id": "BAMLH0A0HYM2", "name": "HY OAS Spread", "category": "credit"},
     {"id": "BAMLC0A0CM", "name": "IG OAS Spread", "category": "credit"},
     {"id": "MORTGAGE30US", "name": "30-Year Mortgage Rate", "category": "housing"},
-    {"id": "CSUSHPINSA", "name": "Case-Shiller Home Price Index", "category": "housing"},
+    {
+        "id": "CSUSHPINSA",
+        "name": "Case-Shiller Home Price Index",
+        "category": "housing",
+    },
     {"id": "TOTALSL", "name": "Consumer Credit Outstanding", "category": "credit"},
 ]
 
@@ -91,6 +182,7 @@ FRED_SERIES: list[dict[str, str]] = [
 def _yfinance_available() -> bool:
     try:
         import yfinance  # type: ignore
+
         return True
     except ImportError:
         return False
@@ -107,7 +199,9 @@ def _download_yfinance(
     Returns summary statistics dict.
     """
     if not _yfinance_available():
-        logger.warning("yfinance not installed — skipping equity price download. pip install yfinance")
+        logger.warning(
+            "yfinance not installed — skipping equity price download. pip install yfinance"
+        )
         return {}
 
     import yfinance as yf  # type: ignore
@@ -138,7 +232,11 @@ def _download_yfinance(
                         ticker_data = data
                     else:
                         # Multi-ticker download has MultiIndex columns
-                        ticker_data = data.xs(ticker, level=1, axis=1) if ticker in data.columns.get_level_values(1) else None
+                        ticker_data = (
+                            data.xs(ticker, level=1, axis=1)
+                            if ticker in data.columns.get_level_values(1)
+                            else None
+                        )
 
                     if ticker_data is None or ticker_data.empty:
                         logger.debug(f"  No data for {ticker}")
@@ -147,7 +245,9 @@ def _download_yfinance(
                     # Save as parquet if pandas available
                     if output_dir:
                         try:
-                            parquet_path = output_dir / f"{ticker.replace('-', '_')}.parquet"
+                            parquet_path = (
+                                output_dir / f"{ticker.replace('-', '_')}.parquet"
+                            )
                             ticker_data.to_parquet(parquet_path)
                         except Exception:
                             # Fall back to CSV
@@ -155,15 +255,21 @@ def _download_yfinance(
                             ticker_data.to_csv(csv_path)
 
                     summary[ticker] = {
-                        "start": str(ticker_data.index.min().date()) if not ticker_data.empty else "",
-                        "end": str(ticker_data.index.max().date()) if not ticker_data.empty else "",
+                        "start": str(ticker_data.index.min().date())
+                        if not ticker_data.empty
+                        else "",
+                        "end": str(ticker_data.index.max().date())
+                        if not ticker_data.empty
+                        else "",
                         "rows": len(ticker_data),
                         "columns": list(ticker_data.columns),
                     }
                 except Exception as exc:
                     logger.debug(f"  {ticker} data extraction failed: {exc}")
 
-            logger.debug(f"  Batch {i // batch_size + 1}/{(len(tickers) + batch_size - 1) // batch_size} complete")
+            logger.debug(
+                f"  Batch {i // batch_size + 1}/{(len(tickers) + batch_size - 1) // batch_size} complete"
+            )
             time.sleep(0.5)
 
         except Exception as exc:
@@ -245,12 +351,17 @@ def _fred_fetch_series(series_id: str, start: str = "2000-01-01") -> list[dict]:
     data = resp.json()
     observations = data.get("observations", [])
     return [
-        {"date": obs["date"], "value": float(obs["value"]) if obs["value"] != "." else None}
+        {
+            "date": obs["date"],
+            "value": float(obs["value"]) if obs["value"] != "." else None,
+        }
         for obs in observations
     ]
 
 
-def download_fred_data(series_list: list[dict[str, str]], output_dir: Path, start: str = "2000-01-01") -> dict[str, int]:
+def download_fred_data(
+    series_list: list[dict[str, str]], output_dir: Path, start: str = "2000-01-01"
+) -> dict[str, int]:
     """Download all FRED series and save to output_dir."""
     output_dir.mkdir(parents=True, exist_ok=True)
     results: dict[str, int] = {}
@@ -270,7 +381,9 @@ def download_fred_data(series_list: list[dict[str, str]], output_dir: Path, star
             }
             (output_dir / f"{series_id}.json").write_text(json.dumps(output, indent=2))
             results[series_id] = len(observations)
-            logger.debug(f"  FRED {series_id} ({name}): {len(observations)} observations")
+            logger.debug(
+                f"  FRED {series_id} ({name}): {len(observations)} observations"
+            )
             time.sleep(0.5)
         except Exception as exc:
             logger.warning(f"  FRED {series_id} failed: {exc}")
@@ -300,17 +413,47 @@ def _build_market_summary(
             "total_tickers": len(fundamentals),
             "avg_pe": _safe_mean([f.get("trailingPE") for f in fundamentals.values()]),
             "avg_pb": _safe_mean([f.get("priceToBook") for f in fundamentals.values()]),
-            "avg_dividend_yield": _safe_mean([f.get("dividendYield") for f in fundamentals.values()]),
+            "avg_dividend_yield": _safe_mean(
+                [f.get("dividendYield") for f in fundamentals.values()]
+            ),
         },
         "macro_data": {
             "total_series": len(fred_counts),
             "series": fred_counts,
         },
         "asset_classes": {
-            "equities": [t for t in EQUITY_TICKERS if t not in
-                         ["AGG", "BND", "TLT", "IEF", "SHY", "HYG", "LQD", "EMB", "MUB", "VTIP",
-                          "GLD", "SLV", "VNQ"]],
-            "bonds": ["AGG", "BND", "TLT", "IEF", "SHY", "HYG", "LQD", "EMB", "MUB", "VTIP"],
+            "equities": [
+                t
+                for t in EQUITY_TICKERS
+                if t
+                not in [
+                    "AGG",
+                    "BND",
+                    "TLT",
+                    "IEF",
+                    "SHY",
+                    "HYG",
+                    "LQD",
+                    "EMB",
+                    "MUB",
+                    "VTIP",
+                    "GLD",
+                    "SLV",
+                    "VNQ",
+                ]
+            ],
+            "bonds": [
+                "AGG",
+                "BND",
+                "TLT",
+                "IEF",
+                "SHY",
+                "HYG",
+                "LQD",
+                "EMB",
+                "MUB",
+                "VTIP",
+            ],
             "alternatives": ["GLD", "SLV", "VNQ"],
             "indices": ["SPY", "QQQ", "IWM", "VTI", "VEA", "VWO"],
         },
@@ -346,7 +489,9 @@ class MarketDataCollector:
 
         # Download prices
         price_dir = self.output_dir / "prices"
-        price_summary = _download_yfinance(tickers, start=start, end=end, output_dir=price_dir)
+        price_summary = _download_yfinance(
+            tickers, start=start, end=end, output_dir=price_dir
+        )
         logger.info(f"Prices: {len(price_summary)} tickers downloaded")
 
         # Download fundamentals
@@ -392,7 +537,9 @@ if __name__ == "__main__":
     if args.tickers_file:
         tickers_path = Path(args.tickers_file)
         if tickers_path.exists():
-            tickers = [t.strip() for t in tickers_path.read_text().splitlines() if t.strip()]
+            tickers = [
+                t.strip() for t in tickers_path.read_text().splitlines() if t.strip()
+            ]
 
     collector = MarketDataCollector(output_dir=args.output)
     stats = collector.run(tickers=tickers, start=args.start, end=args.end)

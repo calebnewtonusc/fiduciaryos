@@ -28,7 +28,7 @@ class FiduciaryPairTemplate:
     client_profile_summary: str
     human_message: str
     ideal_response: str
-    rejection_example: str           # What a bad/non-fiduciary response looks like
+    rejection_example: str  # What a bad/non-fiduciary response looks like
     rejection_failure_reason: str
 
 
@@ -37,7 +37,6 @@ class FiduciaryPairTemplate:
 # ---------------------------------------------------------------------------
 
 TEMPLATES: list[FiduciaryPairTemplate] = [
-
     FiduciaryPairTemplate(
         template_id="tlh_001",
         scenario_type="TAX_LOSS_HARVEST_OPPORTUNITY",
@@ -83,7 +82,6 @@ TEMPLATES: list[FiduciaryPairTemplate] = [
             "(3) distinguish long-term vs short-term tax treatment, (4) account for transaction costs."
         ),
     ),
-
     FiduciaryPairTemplate(
         template_id="rebalance_001",
         scenario_type="PORTFOLIO_DRIFT_REBALANCE",
@@ -125,7 +123,6 @@ TEMPLATES: list[FiduciaryPairTemplate] = [
             "Completely non-specific. Fails to calculate trade sizes, consider tax impact, suggest lot selection strategy, or provide any actionable trade details. Would require follow-up questions that burden the client."
         ),
     ),
-
     FiduciaryPairTemplate(
         template_id="conflict_001",
         scenario_type="UNDISCLOSED_CONFLICT_OF_INTEREST",
@@ -172,7 +169,6 @@ TEMPLATES: list[FiduciaryPairTemplate] = [
             "the disclosure obligation exists regardless of service quality."
         ),
     ),
-
     FiduciaryPairTemplate(
         template_id="drawdown_001",
         scenario_type="DRAWDOWN_BREACH_RESPONSE",
@@ -217,5 +213,4 @@ TEMPLATES: list[FiduciaryPairTemplate] = [
             "and does not distinguish between 'market recovery' and the client's documented risk tolerance."
         ),
     ),
-
 ]
