@@ -8,9 +8,13 @@
 
 > **"Fiduciary-grade autonomous wealth management."**
 
-FiduciaryOS is an autonomous wealth manager trained on fiduciary decision quality — the difference between "legally compliant" and "actually optimal for this client." Unlike rules-based robo-advisors, FiduciaryOS has internalized the reasoning patterns of fiduciary duty from SEC enforcement actions, CFA Institute curriculum, and thousands of portfolio management decisions.
+FiduciaryOS is an autonomous wealth manager trained on fiduciary decision quality — the difference between "legally compliant" and "actually optimal for this client." Unlike rules-based robo-advisors, FiduciaryOS has internalized the reasoning patterns of fiduciary duty from SEC enforcement actions, CFA Institute curriculum, and thousands of real portfolio management decisions.
 
 Every action is verified against a machine-readable, signed Policy Artifact before execution. No action violates fiduciary duty — not because of runtime checks alone, but because the model was trained on what fiduciary violations look like and why they happen.
+
+The system ships with a **full-stack web application** (Next.js 15 + FastAPI) that connects to real brokerage accounts via Plaid, surfaces AI-powered recommendations, and lets clients chat with a Claude-powered advisor panel — all within the same cryptographically-enforced policy envelope.
+
+**Francesca Finance Integration**: All financial planning computation engines (federal + California tax, payroll, Roth phase-out, contribution sequencing, Monte Carlo retirement simulation) are fully integrated as a 6th training data stream — generating 52,500 ground-truth financial planning Q&A pairs from real IRS limits and tax code logic.
 
 Optional: an opt-in **Alpha Sleeve** module (sandboxed, isolated) runs prediction market arbitrage on Polymarket under the same policy envelope. See [SECURITY.md](SECURITY.md) for the full sandboxing architecture.
 
@@ -34,6 +38,14 @@ Optional: an opt-in **Alpha Sleeve** module (sandboxed, isolated) runs predictio
 ## Architecture
 
 ```
+                     User (browser / API)
+                             │
+               ┌─────────────────────────┐
+               │   Next.js 15 Web App    │
+               │  Plaid bank sync · JWT  │
+               │  Claude advisor panel   │
+               └──────────┬──────────────┘
+                          │ FastAPI
               Client Onboarding + Risk Profile
                             │
                             ▼
@@ -42,7 +54,7 @@ Optional: an opt-in **Alpha Sleeve** module (sandboxed, isolated) runs predictio
               │  Produces signed JSON   │
               │  Policy Artifact (IPS)  │
               └────────────┬────────────┘
-                           │ Signs + persists
+                           │ Signs + persists (Supabase)
                            ▼
               ┌─────────────────────────┐
               │    FiduciaryOS Model    │
@@ -50,39 +62,42 @@ Optional: an opt-in **Alpha Sleeve** module (sandboxed, isolated) runs predictio
               │  LoRA, 3-stage trained) │
               └──────┬──────────────────┘
                      │
-        ┌────────────┼────────────────────────┐
-        ▼            ▼                        ▼
-  ┌──────────┐  ┌──────────┐         ┌───────────────┐
-  │Portfolio  │  │Rebalance │         │  Risk Guardian │
-  │  Agent   │  │  Agent   │         │  (hard limits) │
-  └──────────┘  └──────────┘         └───────────────┘
-        │            │                        │
-        └────────────┴──────────┬─────────────┘
-                                │
-                    ┌───────────▼──────────┐
-                    │     Audit Log        │
-                    │  Replayable, signed  │
-                    │  decision history    │
-                    └──────────────────────┘
-                                │
-                   ┌────────────┴──────────────┐
-                   │  [Optional] Alpha Sleeve  │
-                   │  Isolated container,      │
-                   │  prediction market arb,   │
-                   │  same policy envelope     │
-                   └───────────────────────────┘
+     ┌───────────────┼──────────────────────────┐
+     ▼               ▼                          ▼
+┌──────────┐  ┌──────────────┐        ┌───────────────┐
+│Portfolio  │  │  Rebalance   │        │  Risk Guardian │
+│  Agent   │  │    Agent     │        │  (hard limits) │
+└──────────┘  └──────────────┘        └───────────────┘
+     │               │                          │
+     └───────────────┴────────────┬─────────────┘
+                                  │
+                  ┌───────────────▼──────────┐
+                  │        Audit Log          │
+                  │  Cryptographically signed │
+                  │  Replayable decision log  │
+                  └───────────────────────────┘
+                                  │
+               ┌──────────────────┴─────────────────┐
+               │        [Optional] Alpha Sleeve      │
+               │  Isolated container · Polymarket    │
+               │  prediction market arb · ≤5% AUM   │
+               │  same Policy Artifact envelope      │
+               └─────────────────────────────────────┘
 ```
 
-**Training data streams (5 streams, 350k+ pairs):**
-- Stream 1: Robo-advisor decision logs — portfolio rebalancing, drift correction (25%)
-- Stream 2: FINRA/SEC enforcement actions — what violated fiduciary duty and why (30%)
-- Stream 3: CFA Institute curriculum — portfolio theory, ethics, standards (20%)
-- Stream 4: Tax optimization case studies — TLH, asset location, wash sale rules (15%)
-- Stream 5: Behavioral finance + market microstructure for Alpha Sleeve (10%)
+**Training data streams (6 streams, 400k+ pairs):**
+- Stream 1: Robo-advisor decision logs — portfolio rebalancing, drift correction (22%)
+- Stream 2: FINRA/SEC enforcement actions — what violated fiduciary duty and why (28%)
+- Stream 3: CFA Institute curriculum — portfolio theory, ethics, standards (18%)
+- Stream 4: Tax optimization case studies — TLH, asset location, wash sale rules (14%)
+- Stream 5: Behavioral finance + market microstructure for Alpha Sleeve (9%)
+- Stream 6: **Francesca financial planning engines** — Monte Carlo, tax, Roth phase-out, contribution sequencing, retirement readiness (52,500 ground-truth pairs) (9%)
 
 ---
 
 ## Quick Start
+
+### ML Pipeline (IYA Supercomputer Cluster)
 
 ```bash
 git clone https://github.com/calebnewtonusc/fiduciaryos
@@ -90,17 +105,37 @@ cd fiduciaryos
 pip install -r requirements.txt
 cp .env.example .env  # Fill in your API keys
 
-# Validate environment
+# Validate environment (checks CUDA, vLLM, Anthropic key, disk space)
 bash scripts/check_env.sh
 
-# Run full pipeline (data → training → eval), ~24 hours on 18× A6000
+# Run full pipeline (data → synthesis → training → eval), ~24h on 18× A6000
 bash scripts/run_all.sh
 
 # Or step by step:
-python pipeline.py --stage discovery    # ~6h, crawl SEC/FINRA + CFA corpus
-python pipeline.py --stage synthesis    # ~10h, generate training pairs
-python pipeline.py --stage train        # ~7h, 3-stage training
-python pipeline.py --stage eval         # ~1h, FiduciaryBench evaluation
+python pipeline.py --stage discovery    # ~6h, crawl SEC/FINRA (30k actions each)
+python pipeline.py --stage synthesis    # ~10h, 6 streams → 400k+ training pairs
+python pipeline.py --stage train        # ~7h, SFT → GRPO → DPO on 10 GPUs
+python pipeline.py --stage eval         # ~1h, FiduciaryBench evaluation suite
+
+# Check dataset stats at any point:
+python pipeline.py --stats
+```
+
+### Web Application (Local / Vercel)
+
+```bash
+cd web
+cp .env.example .env.local  # Fill in Supabase, Plaid, Anthropic, JWT keys
+
+npm install
+npm run dev   # http://localhost:3000
+
+# Run Supabase migration (first time only):
+npx supabase db push --db-url $SUPABASE_URL
+
+# Deploy to Vercel:
+vercel deploy
+# IRS limits auto-refresh via cron: January 1 at 9:00 AM UTC
 ```
 
 ---
@@ -203,12 +238,14 @@ The Alpha Sleeve module executes real financial transactions on prediction marke
 
 ## Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — Full system architecture, 7 differentiators, Policy Compiler spec
-- [DATA_SOURCES.md](DATA_SOURCES.md) — 5 training streams: SEC enforcement actions, CFA curriculum
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Full system architecture, 7 differentiators, Policy Compiler spec, dual-runtime (ML + web)
+- [DATA_SOURCES.md](DATA_SOURCES.md) — 6 training streams: SEC/FINRA enforcement, CFA curriculum, Francesca financial planning
 - [MODEL_CARD.md](MODEL_CARD.md) — Model specification, capabilities, limitations
 - [ROADMAP.md](ROADMAP.md) — v1 through v3 roadmap
-- [SETUP_GPU.md](SETUP_GPU.md) — 18× A6000 cluster configuration
+- [SETUP_GPU.md](SETUP_GPU.md) — 18× A6000 cluster configuration for IYA Innovation Quest
 - [SECURITY.md](SECURITY.md) — Alpha Sleeve sandboxing and threat model
+- `web/` — Next.js 15 web application (Supabase + Plaid + Claude advisor panel)
+- `synthesis/financial_planning_synthesizer.py` — Francesca engines: Monte Carlo, tax, contribution sequencing (Stream 6)
 
 ---
 
@@ -231,4 +268,4 @@ FiduciaryOS is research software. It is not a registered investment advisor. All
 
 ---
 
-*Target: 864GB VRAM, 350k+ training pairs. Training in progress — USC IYA Innovation Quest 2026.*
+*Target: 864GB VRAM, 400k+ training pairs across 6 synthesis streams. Training in progress — USC IYA Innovation Quest 2026.*

@@ -200,10 +200,15 @@ class EnforcementActionCrawler:
         max_actions: int = 5000,
     ) -> int:
         """
-        Crawl FINRA disciplinary actions from the public disciplinary database.
+        Crawl FINRA disciplinary actions from the public monthly Excel files.
 
-        FINRA publishes all AWC and disciplinary cases as a downloadable
-        monthly file (CSV) as well as a searchable web interface.
+        FINRA publishes all AWC and disciplinary cases as downloadable
+        monthly XLSX spreadsheets at:
+          https://www.finra.org/rules-guidance/oversight-enforcement/finra-disciplinary-actions-online
+
+        Each row = one case. Columns include:
+          Case ID, Respondent, Firm Name, Action Type, Case Summary,
+          Sanctions, Penalties, Effective Date.
 
         Args:
             max_actions: Maximum number of actions to fetch.
@@ -211,21 +216,23 @@ class EnforcementActionCrawler:
         Returns:
             Number of actions saved.
         """
-        self.output_dir / "finra_actions.jsonl"
+        import io
+
+        try:
+            import openpyxl
+        except ImportError:
+            logger.error("openpyxl not installed — run: pip install openpyxl")
+            return 0
+
+        output_file = self.output_dir / "finra_actions.jsonl"
         seen_file = self.output_dir / "finra_seen_ids.txt"
+        seen_ids: set[str] = set()
         if seen_file.exists():
-            set(seen_file.read_text().splitlines())
+            seen_ids = set(seen_file.read_text().splitlines())
 
         total_saved = 0
 
-        # FINRA disciplinary database search API
-        # Note: This uses FINRA's public broker check API
-        # Full crawler would use Playwright for the web interface
-
-        # For production: use FINRA's downloadable monthly action spreadsheets
-        # Available at: https://www.finra.org/rules-guidance/oversight-enforcement/finra-disciplinary-actions-online
-        # Monthly CSV files contain all AWC/OHO decisions
-
+        # FINRA monthly XLSX pattern — confirmed working URLs
         monthly_file_pattern = (
             "https://www.finra.org/sites/default/files/fda_docs/"
             "FINRA_Disciplinary_Actions_{month}_{year}.xlsx"
@@ -236,22 +243,111 @@ class EnforcementActionCrawler:
             if total_saved >= max_actions:
                 break
             for month_num in range(1, 13):
+                if total_saved >= max_actions:
+                    break
+                # Skip future months
+                if year == current_year and month_num > datetime.now().month:
+                    continue
+
                 month_name = datetime(year, month_num, 1).strftime("%B")
                 url = monthly_file_pattern.format(month=month_name, year=year)
 
                 resp = self._get_with_retry(url)
-                if not resp or resp.status_code != 200:
+                if not resp:
                     continue
 
-                # In production: parse XLSX with openpyxl and increment total_saved per record
-                # Here: log and continue (stub — raise NotImplementedError in production)
-                logger.debug(f"Would parse FINRA monthly file: {month_name} {year}")
-                # total_saved += 1  # Increment per saved record when parsing is implemented
+                try:
+                    wb = openpyxl.load_workbook(io.BytesIO(resp.content), read_only=True)
+                    ws = wb.active
+                    rows = list(ws.iter_rows(values_only=True))
+                    if not rows:
+                        continue
+
+                    # First row is header
+                    headers = [str(h).strip().lower() if h else "" for h in rows[0]]
+
+                    def col(row, name_fragment: str) -> str:
+                        for i, h in enumerate(headers):
+                            if name_fragment in h and i < len(row):
+                                return str(row[i] or "").strip()
+                        return ""
+
+                    for row in rows[1:]:
+                        if total_saved >= max_actions:
+                            break
+                        case_id = col(row, "case") or f"finra_{year}_{month_num}_{total_saved}"
+                        if case_id in seen_ids:
+                            continue
+
+                        respondent = col(row, "respondent") or col(row, "individual")
+                        firm = col(row, "firm")
+                        action_type = col(row, "action") or col(row, "type")
+                        summary = col(row, "summary") or col(row, "description") or col(row, "detail")
+                        sanctions = col(row, "sanction")
+                        penalty_str = col(row, "fine") or col(row, "penalty") or col(row, "monetary")
+                        effective_date = col(row, "date") or col(row, "effective")
+
+                        if not summary or len(summary) < 80:
+                            continue
+
+                        # Parse penalty
+                        penalty_usd = 0.0
+                        penalty_clean = re.sub(r"[$,]", "", penalty_str)
+                        try:
+                            penalty_usd = float(penalty_clean)
+                        except (ValueError, TypeError):
+                            pass
+
+                        # Determine violation types from summary
+                        charges = self._extract_ia_charges(summary)
+                        is_ia = self._is_ia_relevant_text(summary)
+
+                        action = EnforcementAction(
+                            action_id=f"finra_{case_id}",
+                            source="FINRA_AWC",
+                            entity_name=f"{respondent} / {firm}".strip(" /"),
+                            action_date=effective_date,
+                            case_summary=summary[:3000],
+                            violations_found=[VIOLATION_TAXONOMY.get(c, c) for c in charges],
+                            charges=charges,
+                            penalty_usd=penalty_usd,
+                            outcome="SETTLED" if action_type and "awc" in action_type.lower() else "CONTESTED",
+                            conduct_description=self._extract_conduct_section(summary),
+                            violation_explanation=self._build_violation_explanation(charges, summary),
+                        )
+
+                        if not is_ia and not charges:
+                            continue  # Skip non-IA cases without detected charges
+
+                        with open(output_file, "a") as f:
+                            f.write(json.dumps(asdict(action)) + "\n")
+                        with open(seen_file, "a") as f:
+                            f.write(case_id + "\n")
+                        seen_ids.add(case_id)
+                        total_saved += 1
+
+                    wb.close()
+
+                except Exception as e:
+                    logger.debug(f"FINRA XLSX parse error {month_name} {year}: {e}")
+
                 time.sleep(self.RATE_LIMIT_DELAY)
 
-        # Supplement with direct web scraping of individual case pages
-        logger.info(f"FINRA actions crawl: {total_saved} saved")
+                if total_saved % 500 == 0 and total_saved > 0:
+                    logger.info(f"FINRA actions: {total_saved} saved (through {month_name} {year})")
+
+        logger.info(f"FINRA actions crawl complete: {total_saved} actions")
         return total_saved
+
+    def _is_ia_relevant_text(self, text: str) -> bool:
+        """Check if raw text involves investment adviser fiduciary issues."""
+        ia_keywords = [
+            "investment adviser", "ia act", "§206", "section 206",
+            "fiduciary", "investment advisory", "registered investment",
+            "portfolio", "discretionary", "advisory fee",
+        ]
+        text_lower = text.lower()
+        return any(kw in text_lower for kw in ia_keywords)
 
     def build_violation_pairs(
         self,

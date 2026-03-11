@@ -70,10 +70,23 @@ def compute_policy_compliance_reward(
     correctly_identified = 0
     false_positives = 0
 
+    all_violation_types = [
+        "undisclosed_conflict", "self_dealing", "churning", "unsuitable_advice",
+        "misrepresentation", "excessive_fees", "front_running", "soft_dollar_abuse", "cherry_picking",
+    ]
+    ground_truth_set = set(ground_truth_violations)
+
     for violation in ground_truth_violations:
         keywords = _violation_keywords(violation)
         if any(kw in response_lower for kw in keywords):
             correctly_identified += 1
+
+    # Count false positives: violation types mentioned that are not in ground truth
+    for vtype in all_violation_types:
+        if vtype not in ground_truth_set:
+            keywords = _violation_keywords(vtype)
+            if any(kw in response_lower for kw in keywords):
+                false_positives += 1
 
     recall = correctly_identified / max(len(ground_truth_violations), 1)
     fp_penalty = 0.2 * false_positives

@@ -11,7 +11,7 @@ const config: Config = {
         serif: ["var(--font-source-serif)", "Georgia", "serif"],
       },
       colors: {
-        accent: "#10B981",
+        accent: "#30d158",
       },
       animation: {
         "fade-up": "fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both",

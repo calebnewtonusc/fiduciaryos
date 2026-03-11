@@ -32,7 +32,7 @@ Output: PolicyArtifact — signed JSON with:
           target_allocation: {equities: 0.70, bonds: 0.25, alternatives: 0.05}
           rebalancing_bands: {equities: ±0.05, bonds: ±0.03}
           max_drawdown_tolerance: 0.18
-          excluded_securities: ["TABACO", ...]
+          excluded_securities: ["TOBACCO", ...]
           tax_strategy: {harvesting_threshold: -500, wash_sale_window: 30}
           liquidity_reserve: {months: 6, min_cash_pct: 0.02}
           alpha_sleeve_enabled: false

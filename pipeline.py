@@ -86,6 +86,7 @@ def stage_synthesis(args: argparse.Namespace) -> None:
     else:
         logger.info("Using Claude API backend")
 
+    # --- Streams 1–5: enforcement, portfolio, tax, rebalance, risk ---
     from synthesis.synthesize_bulk import FiduciaryBulkSynthesizer
 
     synthesizer = FiduciaryBulkSynthesizer(
@@ -96,12 +97,35 @@ def stage_synthesis(args: argparse.Namespace) -> None:
     )
     stats = synthesizer.run()
     total = sum(stats.values())
-    logger.info(f"Synthesis complete: {total:,} pairs")
+    logger.info(f"Streams 1–5 complete: {total:,} pairs")
     logger.info(f"  portfolio pairs:    {stats.get('portfolio', 0):,}")
     logger.info(f"  violation pairs:    {stats.get('violation', 0):,}")
     logger.info(f"  tax pairs:          {stats.get('tax', 0):,}")
     logger.info(f"  rebalance pairs:    {stats.get('rebalance', 0):,}")
     logger.info(f"  risk pairs:         {stats.get('risk', 0):,}")
+
+    # --- Stream 6: Francesca financial planning engines ---
+    logger.info("Running Stream 6: Francesca financial planning synthesis...")
+    from synthesis.financial_planning_synthesizer import FinancialPlanningSynthesizer
+
+    fp_synthesizer = FinancialPlanningSynthesizer(
+        output_dir=PROCESSED_DIR,
+        backend=backend,
+        vllm_urls=vllm_urls,
+        max_workers=25,
+    )
+    fp_stats = fp_synthesizer.run()
+    fp_total = sum(fp_stats.values())
+    logger.info(f"Stream 6 complete: {fp_total:,} financial planning pairs")
+    logger.info(f"  contribution_sequencing:     {fp_stats.get('contribution_sequencing', 0):,}")
+    logger.info(f"  tax_analysis:                {fp_stats.get('tax_analysis', 0):,}")
+    logger.info(f"  monte_carlo_interpretation:  {fp_stats.get('monte_carlo_interpretation', 0):,}")
+    logger.info(f"  roth_phase_out:              {fp_stats.get('roth_phase_out', 0):,}")
+    logger.info(f"  retirement_readiness:        {fp_stats.get('retirement_readiness', 0):,}")
+    logger.info(f"  cashflow_optimization:       {fp_stats.get('cashflow_optimization', 0):,}")
+
+    grand_total = total + fp_total
+    logger.info(f"All 6 streams complete: {grand_total:,} total training pairs")
 
     logger.info("Merging and splitting dataset...")
     _merge_and_split()

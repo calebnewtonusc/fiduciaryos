@@ -607,21 +607,100 @@ class SECFilingCrawler:
         return ""
 
     def _parse_13f_filing(self, hit: dict) -> dict | None:
-        """Parse a 13F-HR holding report into a portfolio snapshot dict."""
+        """Parse a 13F-HR holding report, extracting real holdings from the XML InfoTable."""
+        import xml.etree.ElementTree as ET
+
         source = hit.get("_source", {})
         entity_name = source.get("entity_name", "")
         file_date = source.get("file_date", "")
         file_id = hit.get("_id", "")
 
-        # In production: parse the XML InfoTable for holdings
-        # Here: return the metadata structure
+        # Try to find and fetch the InfoTable XML from the filing package
+        file_urls = source.get("file_urls", [source.get("file_url", "")])
+        if isinstance(file_urls, str):
+            file_urls = [file_urls]
+
+        infotable_text = ""
+        for url in file_urls:
+            if not url:
+                continue
+            full_url = url if url.startswith("http") else f"https://www.sec.gov{url}"
+            index_resp = self._get_with_retry(full_url)
+            if not index_resp:
+                continue
+            content = index_resp.text
+            # Find InfoTable XML link in the index page
+            infotable_match = re.search(
+                r'href="([^"]+(?:infotable|primary_doc|13f)[^"]*\.xml)"',
+                content, re.IGNORECASE,
+            )
+            if infotable_match:
+                xml_url = infotable_match.group(1)
+                if not xml_url.startswith("http"):
+                    xml_url = f"https://www.sec.gov{xml_url}"
+                xml_resp = self._get_with_retry(xml_url)
+                if xml_resp:
+                    infotable_text = xml_resp.text
+                    break
+            elif content.strip().startswith("<?xml") or "<informationTable" in content:
+                infotable_text = content
+                break
+
+        holdings: list[dict] = []
+        total_value_usd = 0
+
+        if infotable_text:
+            try:
+                # Strip XML namespaces for simpler XPath
+                clean_xml = re.sub(r'\sxmlns[^"]*"[^"]*"', "", infotable_text)
+                clean_xml = re.sub(r"<(/?)[\w]+:", r"<\1", clean_xml)
+                root = ET.fromstring(clean_xml)
+
+                for entry in root.findall(".//infoTable"):
+                    def _text(tag: str) -> str:
+                        el = entry.find(tag)
+                        return el.text.strip() if el is not None and el.text else ""
+
+                    name = _text("nameOfIssuer")
+                    cusip = _text("cusip")
+                    share_type = _text(".//sshPrnamtType") or "SH"
+                    try:
+                        value_usd = float(_text("value") or 0) * 1000  # values in thousands
+                    except ValueError:
+                        value_usd = 0
+                    try:
+                        shares = float(_text(".//sshPrnamt") or 0)
+                    except ValueError:
+                        shares = 0
+
+                    if name and value_usd > 0:
+                        holdings.append({
+                            "name": name,
+                            "cusip": cusip,
+                            "value_usd": value_usd,
+                            "shares": shares,
+                            "share_type": share_type,
+                        })
+                        total_value_usd += value_usd
+
+                # Sort by value, keep top 50 for training utility
+                holdings.sort(key=lambda x: x["value_usd"], reverse=True)
+                holdings = holdings[:50]
+
+            except ET.ParseError as e:
+                logger.debug(f"13F XML parse error for {file_id}: {e}")
+
+        if not holdings:
+            return None  # Skip filings we couldn't parse any holdings from
+
         return {
             "filing_id": file_id,
             "entity_name": entity_name,
             "filed_date": file_date,
             "form_type": "13F-HR",
-            "holdings": [],  # Would be populated from InfoTable XML
-            "total_value_usd": 0,
+            "holdings": holdings,
+            "total_value_usd": total_value_usd,
+            "holding_count": len(holdings),
         }
 
     def _html_to_text(self, html: str) -> str:
