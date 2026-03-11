@@ -2,19 +2,17 @@
 
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Model: Qwen2.5-7B-Coder](https://img.shields.io/badge/base_model-Qwen2.5--7B--Coder-purple.svg)](https://huggingface.co/Qwen)
+[![Model: Qwen2.5-32B](https://img.shields.io/badge/base_model-Qwen2.5--32B--Instruct-purple.svg)](https://huggingface.co/Qwen)
 [![GPUs: 18x A6000](https://img.shields.io/badge/training-18×_A6000-red.svg)](https://www.nvidia.com)
 [![Security: Audited](https://img.shields.io/badge/security-alpha_sleeve_sandboxed-blue.svg)](SECURITY.md)
 
-> **"Fiduciary-grade autonomous wealth management."**
+> **"FiduciaryOS will replace ALL finance companies."**
 
-FiduciaryOS is an autonomous wealth manager trained on fiduciary decision quality — the difference between "legally compliant" and "actually optimal for this client." Unlike rules-based robo-advisors, FiduciaryOS has internalized the reasoning patterns of fiduciary duty from SEC enforcement actions, CFA Institute curriculum, and thousands of real portfolio management decisions.
+FiduciaryOS is an autonomous wealth manager, tax advisor, and financial planner — trained to replace human advisors, CPAs, and consulting firms at a fraction of the cost. The model has internalized fiduciary duty from SEC enforcement actions, CFA curriculum, and IRS tax code, and applies it with mathematical precision across portfolios, equity compensation, AMT planning, and retirement tax strategy.
 
-Every action is verified against a machine-readable, signed Policy Artifact before execution. No action violates fiduciary duty — not because of runtime checks alone, but because the model was trained on what fiduciary violations look like and why they happen.
+Every action is verified against a machine-readable, signed Policy Artifact before execution. The system ships with a **full-stack web application** (Next.js 15 + FastAPI) that connects to real brokerage accounts via Plaid, computes your full tax picture (AMT, NIIT, ISO/RSU/ESPP, Schedule D), and surfaces fiduciary-grade recommendations — all within a cryptographically-enforced policy envelope.
 
-The system ships with a **full-stack web application** (Next.js 15 + FastAPI) that connects to real brokerage accounts via Plaid, surfaces AI-powered recommendations, and lets clients chat with a Claude-powered advisor panel — all within the same cryptographically-enforced policy envelope.
-
-**Francesca Finance Integration**: All financial planning computation engines (federal + California tax, payroll, Roth phase-out, contribution sequencing, Monte Carlo retirement simulation) are fully integrated as a 6th training data stream — generating 52,500 ground-truth financial planning Q&A pairs from real IRS limits and tax code logic.
+**v2 — CPA Replacement**: 7 synthesis streams, 600,000+ training pairs, Qwen2.5-32B-Instruct base model. Stream 7 adds 60,000 CPA-grade tax preparation pairs covering AMT (Form 6251), NIIT (§1411), equity compensation (ISO/NSO/RSU/ESPP), Schedule D, backdoor Roth pro-rata rule, QSBS §1202, and quarterly safe harbor estimates.
 
 Optional: an opt-in **Alpha Sleeve** module (sandboxed, isolated) runs prediction market arbitrage on Polymarket under the same policy envelope. See [SECURITY.md](SECURITY.md) for the full sandboxing architecture.
 
@@ -58,8 +56,8 @@ Optional: an opt-in **Alpha Sleeve** module (sandboxed, isolated) runs predictio
                            ▼
               ┌─────────────────────────┐
               │    FiduciaryOS Model    │
-              │ (Qwen2.5-7B-Coder +    │
-              │  LoRA, 3-stage trained) │
+              │ (Qwen2.5-32B-Instruct + │
+              │  LoRA r128, 3-stage)    │
               └──────┬──────────────────┘
                      │
      ┌───────────────┼──────────────────────────┐
@@ -85,13 +83,14 @@ Optional: an opt-in **Alpha Sleeve** module (sandboxed, isolated) runs predictio
                └─────────────────────────────────────┘
 ```
 
-**Training data streams (6 streams, 400k+ pairs):**
-- Stream 1: Robo-advisor decision logs — portfolio rebalancing, drift correction (22%)
-- Stream 2: FINRA/SEC enforcement actions — what violated fiduciary duty and why (28%)
-- Stream 3: CFA Institute curriculum — portfolio theory, ethics, standards (18%)
-- Stream 4: Tax optimization case studies — TLH, asset location, wash sale rules (14%)
-- Stream 5: Behavioral finance + market microstructure for Alpha Sleeve (9%)
-- Stream 6: **Francesca financial planning engines** — Monte Carlo, tax, Roth phase-out, contribution sequencing, retirement readiness (52,500 ground-truth pairs) (9%)
+**Training data streams (7 streams, 600k+ pairs):**
+- Stream 1: Portfolio analysis — rebalancing, drift correction, mean-variance optimization (87,500 pairs)
+- Stream 2: Violation detection — FINRA/SEC enforcement actions, fiduciary breach taxonomy (105,000 pairs)
+- Stream 3: Tax optimization — TLH, asset location, wash sale rules, after-tax return (70,000 pairs)
+- Stream 4: Rebalancing — drift-triggered, tax-aware lot selection, multi-account (52,500 pairs)
+- Stream 5: Risk assessment — drawdown analysis, volatility, factor exposure, Risk Guardian (35,000 pairs)
+- Stream 6: **Francesca financial planning** — Monte Carlo, Roth phase-out, contribution sequencing, retirement readiness (52,500 pairs)
+- Stream 7: **CPA-grade tax preparation** — AMT (Form 6251), NIIT (§1411), ISO/NSO/RSU/ESPP, Schedule D, QSBS §1202, backdoor Roth, quarterly estimates (60,000 pairs)
 
 ---
 
@@ -113,8 +112,8 @@ bash scripts/run_all.sh
 
 # Or step by step:
 python pipeline.py --stage discovery    # ~6h, crawl SEC/FINRA (30k actions each)
-python pipeline.py --stage synthesis    # ~10h, 6 streams → 400k+ training pairs
-python pipeline.py --stage train        # ~7h, SFT → GRPO → DPO on 10 GPUs
+python pipeline.py --stage synthesis    # ~12h, 7 streams → 600k+ training pairs
+python pipeline.py --stage train        # ~18h, SFT → GRPO → DPO on 18 GPUs (32B)
 python pipeline.py --stage eval         # ~1h, FiduciaryBench evaluation suite
 
 # Check dataset stats at any point:

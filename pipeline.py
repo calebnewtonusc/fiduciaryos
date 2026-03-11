@@ -79,7 +79,8 @@ def stage_synthesis(args: argparse.Namespace) -> None:
         import os
 
         urls_str = os.environ.get(
-            "VLLM_URLS", "http://localhost:8001,http://localhost:8002"
+            "VLLM_URLS",
+            "http://localhost:8001,http://localhost:8002,http://localhost:8003,http://localhost:8004,http://localhost:8005",
         )
         vllm_urls = [u.strip() for u in urls_str.split(",")]
         logger.info(f"Using vLLM backend: {vllm_urls}")
@@ -124,8 +125,28 @@ def stage_synthesis(args: argparse.Namespace) -> None:
     logger.info(f"  retirement_readiness:        {fp_stats.get('retirement_readiness', 0):,}")
     logger.info(f"  cashflow_optimization:       {fp_stats.get('cashflow_optimization', 0):,}")
 
-    grand_total = total + fp_total
-    logger.info(f"All 6 streams complete: {grand_total:,} total training pairs")
+    # --- Stream 7: CPA-grade tax preparation ---
+    logger.info("Running Stream 7: CPA-grade tax preparation synthesis...")
+    from synthesis.tax_preparation_synthesizer import TaxPreparationSynthesizer
+
+    tax_synthesizer = TaxPreparationSynthesizer(
+        output_dir=PROCESSED_DIR,
+        backend=backend,
+        vllm_urls=vllm_urls,
+        max_workers=25,
+    )
+    tax_stats = tax_synthesizer.run()
+    tax_total = sum(tax_stats.values())
+    logger.info(f"Stream 7 complete: {tax_total:,} CPA tax preparation pairs")
+    logger.info(f"  equity_compensation:   {tax_stats.get('equity_compensation', 0):,}")
+    logger.info(f"  amt_planning:          {tax_stats.get('amt_planning', 0):,}")
+    logger.info(f"  schedule_d_harvest:    {tax_stats.get('schedule_d_harvest', 0):,}")
+    logger.info(f"  retirement_tax:        {tax_stats.get('retirement_tax', 0):,}")
+    logger.info(f"  qsbs_planning:         {tax_stats.get('qsbs_planning', 0):,}")
+    logger.info(f"  quarterly_estimates:   {tax_stats.get('quarterly_estimates', 0):,}")
+
+    grand_total = total + fp_total + tax_total
+    logger.info(f"All 7 streams complete: {grand_total:,} total training pairs")
 
     logger.info("Merging and splitting dataset...")
     _merge_and_split()
@@ -203,7 +224,7 @@ def stage_train(args: argparse.Namespace) -> None:
             "training/train.py",
             [
                 "--model_name_or_path",
-                "Qwen/Qwen2.5-7B-Coder-Instruct",
+                "Qwen/Qwen2.5-32B-Instruct",
                 "--data_path",
                 str(TRAIN_DIR),
                 "--output_dir",
@@ -211,9 +232,9 @@ def stage_train(args: argparse.Namespace) -> None:
                 "--epochs",
                 "3",
                 "--batch_size",
-                "4",
+                "1",
                 "--grad_accum",
-                "4",
+                "8",
                 "--learning_rate",
                 "2e-4",
                 "--max_seq_length",

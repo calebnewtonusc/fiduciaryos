@@ -1,28 +1,37 @@
 """
 training/train.py — Stage 1: Supervised Fine-Tuning for FiduciaryOS.
 
-Trains Qwen2.5-7B-Coder-Instruct on the fiduciary decision corpus using
-LoRA + DeepSpeed ZeRO-3 across 10x A6000 (48GB) GPUs.
+Trains Qwen2.5-32B-Instruct on the fiduciary + CPA decision corpus using
+LoRA rank 128 + DeepSpeed ZeRO-3 across all 18x A6000 (48GB) GPUs.
+
+Hardware: IYA Innovation Quest 2026 — 18× A6000, 864GB VRAM total
+  - 32B model in BF16 = ~64GB weights
+  - ZeRO-3 distributes across 18 GPUs = ~3.5GB/GPU for weights alone
+  - Optimizer states + gradients offloaded to CPU
+  - Effective batch size: 18 GPUs × 1 micro-batch × 4 grad accum = 72
 
 Training data format: ShareGPT conversations
   {"conversations": [{"from": "human", "value": "..."}, {"from": "gpt", "value": "..."}]}
 
-Training data sources:
-  - Portfolio analysis pairs: 87,500
-  - Violation detection pairs: 105,000
-  - Tax optimization pairs: 70,000
-  - Rebalancing pairs: 52,500
-  - Risk assessment pairs: 35,000
-  Total: 350,000 pairs
+Training data sources (7 streams, 600k+ pairs):
+  - Stream 1: Portfolio analysis pairs:          87,500
+  - Stream 2: Violation detection pairs:        105,000
+  - Stream 3: Tax optimization pairs:            70,000
+  - Stream 4: Rebalancing pairs:                 52,500
+  - Stream 5: Risk assessment pairs:             35,000
+  - Stream 6: Financial planning (Francesca):    52,500
+  - Stream 7: CPA-grade tax preparation:         60,000
+  Total: 462,500 pairs (post-dedup: ~600k+ with augmentation)
 
-Run command (10x A6000 GPUs 8–17):
-    deepspeed --num_gpus=10 training/train.py \
-        --data_path data/train/fiduciary_sft.jsonl \
-        --output_dir checkpoints/sft \
-        --model_name_or_path Qwen/Qwen2.5-7B-Coder-Instruct \
+Run command (18x A6000, all GPUs):
+    CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17 \
+    deepspeed --num_gpus=18 training/train.py \
+        --data_path data/train \
+        --output_dir checkpoints/fiduciaryos-sft \
+        --model_name_or_path Qwen/Qwen2.5-32B-Instruct \
         --deepspeed training/configs/deepspeed_zero3.json
 
-Expected runtime: ~28 hours on 10x A6000
+Expected runtime: ~18 hours on 18x A6000 (32B, 3 epochs, 600k pairs)
 """
 
 from __future__ import annotations
@@ -48,9 +57,9 @@ from trl import SFTConfig, SFTTrainer
 # Constants
 # ---------------------------------------------------------------------------
 
-MODEL_ID = "Qwen/Qwen2.5-7B-Coder-Instruct"
-LORA_RANK = 64
-LORA_ALPHA = 128
+MODEL_ID = "Qwen/Qwen2.5-32B-Instruct"
+LORA_RANK = 128        # Increased from 64 — 32B model benefits from higher rank
+LORA_ALPHA = 256       # 2× rank as per standard scaling
 LORA_DROPOUT = 0.05
 TARGET_MODULES = [
     "q_proj",
@@ -61,7 +70,7 @@ TARGET_MODULES = [
     "up_proj",
     "down_proj",
 ]
-MAX_SEQ_LENGTH = 4096
+MAX_SEQ_LENGTH = 8192  # 32B supports 32k context; 8192 fits comfortably on 864GB cluster
 
 
 # ---------------------------------------------------------------------------

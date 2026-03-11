@@ -338,3 +338,128 @@ def get_risk_status() -> dict[str, Any]:
 def toggle_safe_mode(body: dict[str, Any]) -> dict[str, Any]:
     enable = body.get("enable", False)
     return {"safe_mode": enable, "acknowledged": True}
+
+
+# ── Tax v2 endpoints ───────────────────────────────────────────────────────────
+
+try:
+    from core.tax_engine_v2 import (
+        TaxProfile,
+        compute_full_tax,
+        compute_quarterly_estimates,
+        compute_backdoor_roth_pro_rata,
+        RothConversionLadder,
+    )
+    _TAX_V2_AVAILABLE = True
+except ImportError as e:
+    print(f"[warn] TaxEngineV2 not available: {e}")
+    _TAX_V2_AVAILABLE = False
+
+
+class TaxProjectionRequest(BaseModel):
+    filing_status: str = "single"
+    w2_income: float = 0
+    iso_spread: float = 0
+    nso_w2_income: float = 0
+    short_term_gains: float = 0
+    long_term_gains: float = 0
+    qualified_dividends: float = 0
+    ordinary_dividends: float = 0
+    itemized_deductions: float = 0
+    traditional_ira_contrib: float = 0
+    k401_contrib: float = 0
+    state_code: str = "CA"
+    prior_year_tax: float = 0
+    w2_withholding: float = 0
+    qsbs_gain: float = 0
+    qsbs_exclusion: float = 1.0
+
+
+@app.post("/tax/projection")
+def tax_projection(req: TaxProjectionRequest) -> dict[str, Any]:
+    if not _TAX_V2_AVAILABLE:
+        return {"error": "tax_engine_v2 not available", "offline": True}
+    try:
+        from dataclasses import asdict
+        profile = TaxProfile(
+            filing_status=req.filing_status,
+            w2_income=req.w2_income,
+            iso_spread=req.iso_spread,
+            nso_w2_income=req.nso_w2_income,
+            short_term_gains=req.short_term_gains,
+            long_term_gains=req.long_term_gains,
+            qualified_dividends=req.qualified_dividends,
+            ordinary_dividends=req.ordinary_dividends,
+            itemized_deductions=req.itemized_deductions,
+            traditional_ira_contrib=req.traditional_ira_contrib,
+            k401_contrib=req.k401_contrib,
+            state_code=req.state_code,
+            prior_year_tax=req.prior_year_tax,
+            w2_withholding=req.w2_withholding,
+            qsbs_gain=req.qsbs_gain,
+            qsbs_exclusion=req.qsbs_exclusion,
+        )
+        result = compute_full_tax(profile)
+        return asdict(result)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/tax/roth-ladder")
+def roth_ladder(body: dict[str, Any]) -> dict[str, Any]:
+    if not _TAX_V2_AVAILABLE:
+        return {"error": "tax_engine_v2 not available", "offline": True}
+    try:
+        ladder = RothConversionLadder()
+        result = ladder.optimize(
+            current_bracket_top=body.get("current_bracket_top", 103350),
+            roth_balance=body.get("roth_balance", 0),
+            trad_balance=body.get("trad_balance", 0),
+            years_to_retirement=body.get("years_to_retirement", 25),
+            expected_retirement_income=body.get("expected_retirement_income", 80000),
+        )
+        return {"conversions": result}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/tax/quarterly")
+def quarterly_estimates(body: dict[str, Any]) -> dict[str, Any]:
+    if not _TAX_V2_AVAILABLE:
+        return {"error": "tax_engine_v2 not available", "offline": True}
+    try:
+        result = compute_quarterly_estimates(
+            annual_tax=body.get("annual_tax", 0),
+            prior_year_tax=body.get("prior_year_tax", 0),
+            w2_withholding=body.get("w2_withholding", 0),
+        )
+        return {"quarterly_estimates": result}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/tax/equity")
+def equity_tax(body: dict[str, Any]) -> dict[str, Any]:
+    if not _TAX_V2_AVAILABLE:
+        return {"error": "tax_engine_v2 not available", "offline": True}
+    try:
+        from core.tax_engine_v2 import TaxProfile, compute_full_tax
+        from dataclasses import asdict
+        profile = TaxProfile(
+            filing_status=body.get("filing_status", "single"),
+            w2_income=body.get("w2_income", 0),
+            iso_spread=body.get("iso_spread", 0),
+            nso_w2_income=body.get("nso_w2_income", 0),
+            short_term_gains=body.get("short_term_gains", 0),
+            long_term_gains=body.get("long_term_gains", 0),
+            state_code=body.get("state_code", "CA"),
+        )
+        result = compute_full_tax(profile)
+        return {
+            "amt_triggered": result.amt_triggered,
+            "amt_owed": result.amt,
+            "iso_preference": body.get("iso_spread", 0),
+            "recommendations": result.recommendations,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
