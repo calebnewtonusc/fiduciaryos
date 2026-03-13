@@ -53,6 +53,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "https://fiduciary.cash",
+        "https://www.fiduciary.cash",
         "https://fiduciaryos.vercel.app",
         os.environ.get("ALLOWED_ORIGIN", ""),
     ],

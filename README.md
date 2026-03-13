@@ -1,10 +1,13 @@
-# FiduciaryOS — Fiduciary-grade autonomous wealth management.
+# FiduciaryOS — Replace your advisor, CPA, and consultant.
 
+[![Live App](https://img.shields.io/badge/live-fiduciary.cash-30d158?style=flat)](https://fiduciary.cash)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Model: Qwen2.5-32B](https://img.shields.io/badge/base_model-Qwen2.5--32B--Instruct-purple.svg)](https://huggingface.co/Qwen)
 [![GPUs: 18x A6000](https://img.shields.io/badge/training-18×_A6000-red.svg)](https://www.nvidia.com)
 [![Security: Audited](https://img.shields.io/badge/security-alpha_sleeve_sandboxed-blue.svg)](SECURITY.md)
+
+**[→ fiduciary.cash](https://fiduciary.cash)**
 
 > **"FiduciaryOS will replace ALL finance companies."**
 

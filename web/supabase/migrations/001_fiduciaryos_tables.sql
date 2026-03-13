@@ -61,3 +61,9 @@ create table if not exists audit_entries (
 );
 
 create index if not exists audit_entries_client_idx on audit_entries (client_id_hash, timestamp_iso desc);
+
+-- ── waitlist ─────────────────────────────────────────────────────────────────
+create table if not exists waitlist (
+  email       text primary key,
+  created_at  timestamptz not null default now()
+);

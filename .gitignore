@@ -70,3 +70,5 @@ results/
 
 # Docker
 docker-compose.override.yml
+web/.next/
+web/node_modules/
