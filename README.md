@@ -267,4 +267,4 @@ FiduciaryOS is research software. It is not a registered investment advisor. All
 
 ---
 
-*Target: 864GB VRAM, 400k+ training pairs across 6 synthesis streams. Training in progress — USC IYA Innovation Quest 2026.*
+*Target: 864GB VRAM, 600k+ training pairs across 7 synthesis streams. Qwen2.5-32B-Instruct base model (LoRA r128/α256, 8192 ctx). Training in progress — USC IYA Innovation Quest 2026.*

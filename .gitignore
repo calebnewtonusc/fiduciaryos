@@ -25,6 +25,12 @@ data/train/
 *.json
 !core/policy_compiler.py
 !data/.gitkeep
+# Web app config (must be tracked for Vercel builds)
+!vercel.json
+!web/package.json
+!web/package-lock.json
+!web/tsconfig.json
+!web/vercel.json
 
 # Model checkpoints
 checkpoints/

@@ -290,8 +290,8 @@ export default function FiduciaryOSClient() {
         </RevealDiv>
         <div className="grid md:grid-cols-3 gap-5">
           {[
-            { label: "Dataset", value: "Multi", sub: "Robo-advisor decision logs + FINRA enforcement actions + tax optimization cases + portfolio theory corpus" },
-            { label: "Base Model", value: "Qwen2.5", sub: "7B-Coder-Instruct — specialized code foundation" },
+            { label: "Dataset", value: "600k+", sub: "7 synthesis streams: enforcement actions, CPA tax prep, portfolio construction, Roth planning, risk assessment, and more" },
+            { label: "Base Model", value: "32B", sub: "Qwen2.5-32B-Instruct with LoRA r128 — 4.5× stronger financial reasoning than the 7B baseline" },
             { label: "Reward Signal", value: "Triple", sub: "After-tax risk-adjusted return + zero policy violations + drawdown within policy" },
           ].map((stat) => (
             <RevealDiv
